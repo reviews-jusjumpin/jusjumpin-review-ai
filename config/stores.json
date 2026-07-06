@@ -1,0 +1,26 @@
+{
+  "stores": [
+    { "code": "ABC",  "name": "ABC",           "state": "West Bengal",  "active": true,  "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "AVA",  "name": "Avani",         "state": "West Bengal",  "active": true,  "gbpLocationId": "220982500400601370",  "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "AXS",  "name": "AXIS",          "state": "West Bengal",  "active": true,  "gbpLocationId": "2647162281241800825", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "CC2",  "name": "City Center 2", "state": "West Bengal",  "active": true,  "gbpLocationId": "4007200227227193789", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "DHN",  "name": "Dhanbad",       "state": "Jharkhand",    "active": true,  "gbpLocationId": "1943488030314201963", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "DGP",  "name": "Durgapur",      "state": "West Bengal",  "active": true,  "gbpLocationId": "18327745504521194767","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "GHT",  "name": "Ghatkopar",     "state": "Maharashtra",  "active": true,  "gbpLocationId": "18063501228920629798","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "GIP",  "name": "Gip",           "state": "Uttar Pradesh","active": true,  "gbpLocationId": "13162122035629126204","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "JSR",  "name": "Jamshedpur",    "state": "Jharkhand",    "active": true,  "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "M5",   "name": "M5",            "state": "Karnataka",    "active": true,  "gbpLocationId": "10813506873226356141","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "MHG",  "name": "Mahagun",       "state": "Uttar Pradesh","active": true,  "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "MNK",  "name": "Meenakshi",     "state": "Karnataka",    "active": true,  "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "NGP",  "name": "Nagpur",        "state": "Maharashtra",  "active": true,  "gbpLocationId": "13098882625173479574","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "NSK",  "name": "Nashik",        "state": "Maharashtra",  "active": true,  "gbpLocationId": "16429597732094742362","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "PUN",  "name": "Pune",          "state": "Maharashtra",  "active": true,  "gbpLocationId": "1381371610634683178", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "RPR",  "name": "Raipur",        "state": "Chhattisgarh", "active": true,  "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "RNC",  "name": "Ranchi",        "state": "Jharkhand",    "active": true,  "gbpLocationId": "13375106413108759884","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "SLG",  "name": "Siliguri",      "state": "West Bengal",  "active": true,  "gbpLocationId": "17238519369760864148","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "SPC",  "name": "Spectrum",      "state": "Uttar Pradesh","active": true,  "gbpLocationId": "3232496838577832460", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "SRT",  "name": "Surat",         "state": "Gujarat",      "active": true,  "gbpLocationId": "10016710587852610344","managerEmail": "", "managerWhatsApp": "" },
+    { "code": "THN",  "name": "Thane",         "state": "Maharashtra",  "active": true,  "gbpLocationId": "9291677129020056571", "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "UDR",  "name": "Udaipur",       "state": "Rajasthan",    "active": false, "gbpLocationId": "",                    "managerEmail": "", "managerWhatsApp": "" }
+  ]
+}

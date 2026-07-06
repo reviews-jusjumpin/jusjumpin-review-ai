@@ -1,0 +1,66 @@
+[
+  {
+    "name": "accounts/MOCK/locations/PUNE/reviews/r1",
+    "rating": 5,
+    "reviewerName": "Sneha Kulkarni",
+    "storeName": "Pune",
+    "storeCode": "PUN",
+    "comment": "Celebrated my son's 7th birthday here and it was magical! The party host Priya kept 15 kids entertained for 3 hours straight. The trampoline arena and foam pit were a huge hit. Slightly pricey but worth every rupee."
+  },
+  {
+    "name": "accounts/MOCK/locations/THANE/reviews/r2",
+    "rating": 4,
+    "reviewerName": "Rohit Sharma",
+    "storeName": "Thane",
+    "storeCode": "THN",
+    "comment": "Bacchon ko bahut maza aaya, staff bhi friendly tha. Bas weekend pe bahut zyada crowd ho jata hai aur wait karna padta hai. Weekday pe jao toh best experience."
+  },
+  {
+    "name": "accounts/MOCK/locations/ABC/reviews/r3",
+    "rating": 1,
+    "reviewerName": "Priyanka Das",
+    "storeName": "ABC",
+    "storeCode": "ABC",
+    "comment": "Very disappointed and angry. My 5 year old daughter twisted her ankle on a trampoline spring that was exposed, and the staff on duty took 10 minutes to even bring a first aid kit. No one in charge came to speak to us. This is a serious safety issue and I expect someone to contact me."
+  },
+  {
+    "name": "accounts/MOCK/locations/M5/reviews/r4",
+    "rating": 2,
+    "reviewerName": "Karthik R",
+    "storeName": "M5",
+    "storeCode": "M5",
+    "comment": "Charged me twice for socks at the counter and the staff refused to give a refund, said system issue and to come back later. Why should I come back for your billing mistake? Fun place but billing process is a mess."
+  },
+  {
+    "name": "accounts/MOCK/locations/JSR/reviews/r5",
+    "rating": 3,
+    "reviewerName": "Anita Singh",
+    "storeName": "Jamshedpur",
+    "storeCode": "JSR",
+    "comment": "Kids enjoyed the rides and soft play area. But the washrooms were dirty and there was no soap. For the ticket price I expect basic hygiene to be maintained."
+  },
+  {
+    "name": "accounts/MOCK/locations/NGP/reviews/r6",
+    "rating": 5,
+    "reviewerName": "Vikram Deshmukh",
+    "storeName": "Nagpur",
+    "storeCode": "NGP",
+    "comment": "बहुत ही शानदार जगह है बच्चों के लिए। स्टाफ बहुत अच्छा है और सुरक्षा का पूरा ध्यान रखते हैं। हम हर महीने आते हैं।"
+  },
+  {
+    "name": "accounts/MOCK/locations/GHT/reviews/r7",
+    "rating": 1,
+    "reviewerName": "Farhan Shaikh",
+    "storeName": "Ghatkopar",
+    "storeCode": "GHT",
+    "comment": "Entry counter staff was extremely rude. We had booked online and they still made us wait 40 minutes and spoke very badly when we asked. Never coming back."
+  },
+  {
+    "name": "accounts/MOCK/locations/SRT/reviews/r8",
+    "rating": 4,
+    "reviewerName": "Hetal Patel",
+    "storeName": "Surat",
+    "storeCode": "SRT",
+    "comment": ""
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "name": "jusjumpin-review-ai",
+  "version": "0.1.0",
+  "description": "AI review responder + negative-review escalation for Jus Jumpin Google Business Profiles",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dryrun": "node test/dryrun.js",
+    "get-token": "node scripts/get-refresh-token.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
+    "express": "^4.22.2",
+    "google-auth-library": "^10.7.0",
+    "zod": "^3.25.76"
+  }
+}
