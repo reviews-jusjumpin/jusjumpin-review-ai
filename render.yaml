@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: jusjumpin-review-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DRY_RUN
+        value: "0"
+      - key: PORT
+        value: "10000"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-opus-4-8
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GBP_ACCOUNT_ID
+        value: "116275598253754757177"
+      - key: TICKET_SPREADSHEET_ID
+        value: "19msYq1XTdku4tnBB7Gni0lcRDA8HTGpn_sRsQG9QPCM"
+      - key: TICKET_SHEET_NAME
+        value: Tickets
+      - key: TASKS_SECRET
+        sync: false
