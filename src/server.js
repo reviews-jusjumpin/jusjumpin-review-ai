@@ -158,34 +158,30 @@ function requireSecret(req, res, next) {
 }
 
 /** Reconciliation sweep — catches anything Pub/Sub missed. Run hourly. */
-app.post("/tasks/poll", requireSecret, async (_req, res) => {
-  try {
-    const results = await pollAllStores();
-    state.lastPoll = Date.now();
-    state.lastPollCount = results.length;
-    state.totalPolls++;
-    console.log(`poll: processed ${results.length} reviews`);
-    res.json({ ok: true, processed: results.length });
-  } catch (err) {
-    console.error("poll error:", err);
-    res.status(500).json({ error: String(err) });
-  }
+app.post("/tasks/poll", requireSecret, (_req, res) => {
+  res.json({ ok: true, message: "poll started" }); // respond immediately so cron-job.org doesn't time out
+  pollAllStores()
+    .then((results) => {
+      state.lastPoll = Date.now();
+      state.lastPollCount = results.length;
+      state.totalPolls++;
+      console.log(`poll: processed ${results.length} reviews`);
+    })
+    .catch((err) => console.error("poll error:", err));
 });
 
 /** Post manager-approved drafts. Run every 10-15 minutes. */
-app.post("/tasks/approvals", requireSecret, async (_req, res) => {
-  try {
-    const results = await postApprovedReplies();
-    const posted = results.filter((r) => r.action === "posted").length;
-    state.lastApprovals = Date.now();
-    state.lastApprovalsPosted = posted;
-    state.totalPosted += posted;
-    console.log(`approvals: posted ${posted}`);
-    res.json({ ok: true, posted });
-  } catch (err) {
-    console.error("approvals error:", err);
-    res.status(500).json({ error: String(err) });
-  }
+app.post("/tasks/approvals", requireSecret, (_req, res) => {
+  res.json({ ok: true, message: "approvals started" }); // respond immediately
+  postApprovedReplies()
+    .then((results) => {
+      const posted = results.filter((r) => r.action === "posted").length;
+      state.lastApprovals = Date.now();
+      state.lastApprovalsPosted = posted;
+      state.totalPosted += posted;
+      console.log(`approvals: posted ${posted}`);
+    })
+    .catch((err) => console.error("approvals error:", err));
 });
 
 const port = process.env.PORT || 8080;
