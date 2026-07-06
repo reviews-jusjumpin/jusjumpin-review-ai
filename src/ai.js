@@ -47,7 +47,7 @@ Reply rules:
 - Positive reviews: thank them genuinely, reflect their highlight back, invite the family to jump again.
 - Negative reviews: open with a genuine apology, name the specific issue, say it has been escalated to the centre manager, and invite them to speak with the centre team on their next visit or via the contact details on our profile. Do not be defensive.
 - Injury or safety mentions: express sincere concern for the child's wellbeing and urgency, but never admit fault or liability. Escalate tone of care, not blame.
-- Sign off exactly: "– Team Jus Jumpin {STORE}".
+- Sign off exactly: "– Team Jus Jumpin".
 
 Severity rules: any mention of a child getting hurt, unsafe equipment, or legal action is "critical" regardless of star rating.`;
 
@@ -98,7 +98,7 @@ export function analyzeReviewHeuristic(review) {
     language: "english",
     summary: `(heuristic) ${review.rating}-star review`,
     reply: negative
-      ? `We're really sorry your visit fell short. This has been escalated to our centre manager, and we'd love the chance to make it right on your next visit. – Team Jus Jumpin ${review.storeName}`
-      : `Thank you so much for the wonderful rating! We can't wait to see the kids bouncing with us again soon. – Team Jus Jumpin ${review.storeName}`,
+      ? `We're really sorry your visit fell short. This has been escalated to our centre manager, and we'd love the chance to make it right on your next visit. – Team Jus Jumpin`
+      : `Thank you so much for the wonderful rating! We can't wait to see the kids bouncing with us again soon. – Team Jus Jumpin`,
   };
 }
