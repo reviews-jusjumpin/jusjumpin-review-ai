@@ -75,3 +75,23 @@ export async function markPosted(rowNumber) {
     { method: "PUT", data: { values: [["POSTED", null, new Date().toISOString()]] } }
   );
 }
+
+export async function getStats() {
+  const rows = await getValues("A2:N");
+  const stats = { open: 0, approved: 0, posted: 0, total: 0, recent: [] };
+  rows.forEach((r) => {
+    if (!r[0]) return;
+    stats.total++;
+    const status = (r[11] || "OPEN").trim().toUpperCase();
+    if (status === "POSTED") stats.posted++;
+    else if (status === "APPROVED") stats.approved++;
+    else stats.open++;
+    if (stats.recent.length < 8) {
+      stats.recent.push({
+        id: r[0], created: r[1], store: r[2], rating: r[3],
+        reviewer: r[4], summary: r[8] || "", status,
+      });
+    }
+  });
+  return stats;
+}
