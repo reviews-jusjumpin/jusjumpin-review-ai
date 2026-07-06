@@ -165,7 +165,7 @@ app.post("/tasks/poll", requireSecret, async (_req, res) => {
     state.lastPollCount = results.length;
     state.totalPolls++;
     console.log(`poll: processed ${results.length} reviews`);
-    res.json({ processed: results.length, results: results.map((r) => r.action) });
+    res.json({ ok: true, processed: results.length });
   } catch (err) {
     console.error("poll error:", err);
     res.status(500).json({ error: String(err) });
@@ -181,7 +181,7 @@ app.post("/tasks/approvals", requireSecret, async (_req, res) => {
     state.lastApprovalsPosted = posted;
     state.totalPosted += posted;
     console.log(`approvals: posted ${posted}`);
-    res.json({ results });
+    res.json({ ok: true, posted });
   } catch (err) {
     console.error("approvals error:", err);
     res.status(500).json({ error: String(err) });
