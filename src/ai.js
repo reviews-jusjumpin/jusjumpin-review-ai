@@ -72,8 +72,7 @@ export async function analyzeReview(review) {
 
   const response = await client().messages.parse({
     model: ENV.claudeModel,
-    max_tokens: 2048,
-    thinking: { type: "adaptive" },
+    max_tokens: 1024,
     system: SYSTEM,
     messages: [{ role: "user", content: userMsg }],
     output_config: { format: zodOutputFormat(ReviewAnalysis) },
