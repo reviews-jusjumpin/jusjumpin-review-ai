@@ -65,6 +65,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * on any schedule — both checks make it idempotent.
  */
 export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
+  await sheets.ensureHeader(); // adds new columns to existing sheet if missing
   const ticketed = await sheets.ticketedReviewNames();
   const results = [];
   let callCount = 0;
