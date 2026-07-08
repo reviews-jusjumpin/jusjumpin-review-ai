@@ -19,51 +19,44 @@ export const TOPICS = [
 
 const ReviewAnalysis = z.object({
   sentiment: z.enum(["positive", "neutral", "negative"]),
-  severity: z
-    .enum(["none", "low", "medium", "high", "critical"])
-    .describe(
-      "critical = child injury, safety hazard, or legal threat; high = serious service failure (refund denied, staff misconduct); medium = notable complaint; low = minor gripe inside an otherwise fine review; none = no complaint"
-    ),
-  topics: z.array(z.enum(TOPICS)).describe("every topic the review touches"),
-  language: z
-    .string()
-    .describe("language of the review: 'english', 'hindi', 'hinglish', or other"),
-  summary: z
-    .string()
-    .describe("one-line summary of the review for the ops ticket, in English"),
-  reply: z.string().describe("the reply to post (or draft, if negative), following the brand rules"),
+  severity: z.enum(["none", "low", "medium", "high", "critical"]),
+  topics: z.array(z.enum(TOPICS)),
+  language: z.string(),
+  summary: z.string(),
+  reply: z.string(),
 });
-
-// Gemini native JSON schema — mirrors ReviewAnalysis above
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
-    severity: { type: "string", enum: ["none", "low", "medium", "high", "critical"] },
-    topics: { type: "array", items: { type: "string", enum: TOPICS } },
-    language: { type: "string" },
-    summary: { type: "string" },
-    reply: { type: "string" },
-  },
-  required: ["sentiment", "severity", "topics", "language", "summary", "reply"],
-};
 
 const SYSTEM = `You are the official review-response writer for Jus Jumpin, India's kids' trampoline park and family entertainment centre chain with 20+ locations across India. Parents bring children aged 2-14 for jumping, soft play, arcade games, and birthday parties.
 
-You receive one Google review at a time and produce a structured analysis plus a reply.
+You receive one Google review at a time and must respond with ONLY a valid JSON object — no markdown, no explanation, just the JSON.
+
+Required JSON format:
+{
+  "sentiment": "positive" | "neutral" | "negative",
+  "severity": "none" | "low" | "medium" | "high" | "critical",
+  "topics": [array of applicable topics from: staff_behavior, safety_injury, cleanliness_hygiene, billing_refund, crowding_queue, equipment_rides, food_beverage, pricing_value, booking_membership, birthday_party, socks_entry_policy, other],
+  "language": "english" | "hindi" | "hinglish" | other language name,
+  "summary": "one-line summary in English for the ops team",
+  "reply": "the reply to post on Google"
+}
+
+Severity rules:
+- critical = child injury, safety hazard, or legal threat
+- high = serious service failure (refund denied, staff misconduct)
+- medium = notable complaint
+- low = minor gripe inside an otherwise fine review
+- none = no complaint
 
 Reply rules:
 - Mirror the reviewer's language: English review gets English, Hindi gets Hindi, Hinglish gets Hinglish.
 - Maximum ~70 words. Warm, energetic, family-first tone. Address the reviewer by first name when available.
 - Reference at least one specific detail from their review so it never reads like a template.
 - Google policy: never include discounts, offers, promotions, phone numbers, email addresses, or links in the reply.
-- Never mention the specific store/location name in the reply body — always say "Jus Jumpin" only, never "Jus Jumpin ABC" or any store suffix.
-- Positive reviews: thank them genuinely for visiting Jus Jumpin, reflect their highlight back, invite the family to jump again.
-- Negative reviews: open with a genuine apology, name the specific issue, say it has been escalated to the centre manager, and invite them to speak with the centre team on their next visit or via the contact details on our profile. Do not be defensive.
-- Injury or safety mentions: express sincere concern for the child's wellbeing and urgency, but never admit fault or liability. Escalate tone of care, not blame.
-- Sign off exactly: "– Team Jus Jumpin".
-
-Severity rules: any mention of a child getting hurt, unsafe equipment, or legal action is "critical" regardless of star rating.`;
+- Never mention the specific store/location name — always say "Jus Jumpin" only.
+- Positive reviews: thank them genuinely, reflect their highlight back, invite the family to jump again.
+- Negative reviews: open with a genuine apology, name the specific issue, say it has been escalated to the centre manager, invite them to speak with the centre team on their next visit. Do not be defensive.
+- Injury or safety mentions: express sincere concern for the child's wellbeing, but never admit fault or liability.
+- Sign off exactly: "– Team Jus Jumpin".`;
 
 let _genAI;
 function genAI() {
@@ -86,21 +79,18 @@ export async function analyzeReview(review) {
   const model = genAI().getGenerativeModel({
     model: ENV.geminiModel,
     systemInstruction: SYSTEM,
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-    },
+    generationConfig: { responseMimeType: "application/json" },
   });
 
   const result = await model.generateContent(userMsg);
-  const json = JSON.parse(result.response.text());
+  const text = result.response.text();
+  const json = JSON.parse(text);
   return ReviewAnalysis.parse(json);
 }
 
 /**
- * Offline fallback used by the dry run when no GEMINI_API_KEY is set —
- * rating-based routing with template replies, so the pipeline is testable
- * before any credentials exist. Not used in production.
+ * Offline fallback — rating-based heuristic when no GEMINI_API_KEY is set.
+ * Not used in production.
  */
 export function analyzeReviewHeuristic(review) {
   const negative = review.rating <= 3;

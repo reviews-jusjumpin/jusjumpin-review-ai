@@ -70,6 +70,7 @@ export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
       try {
         results.push(await processReview(review, store, { dryRun }));
       } catch (err) {
+        console.error(`poll error [${store.code}] ${review.reviewId}: ${err}`);
         results.push({ action: "error", review, error: String(err) });
       }
     }
