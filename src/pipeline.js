@@ -54,6 +54,10 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
   return { action: "ticket", review, analysis, ticket };
 }
 
+// Gemini free tier = 5 req/min → pace to 1 per 13 s to stay safely under limit
+const GEMINI_PACE_MS = 13_000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /**
  * Reconciliation poll: sweep recent reviews on every active store, process
  * anything that has no owner reply yet and no existing ticket. Safe to run
@@ -62,13 +66,18 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
 export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
   const ticketed = await sheets.ticketedReviewNames();
   const results = [];
+  let callCount = 0;
   for (const store of ACTIVE_STORES) {
     if (!store.gbpLocationId) continue;
     const reviews = await gbp.listReviews(store);
     for (const review of reviews) {
       if (review.hasReply || ticketed.has(review.name)) continue;
+      if (callCount > 0) await sleep(GEMINI_PACE_MS);
+      callCount++;
       try {
-        results.push(await processReview(review, store, { dryRun }));
+        const result = await processReview(review, store, { dryRun });
+        console.log(`poll [${store.code}] #${callCount}: ${result.action} (${review.rating}★)`);
+        results.push(result);
       } catch (err) {
         console.error(`poll error [${store.code}] ${review.reviewId}: ${err}`);
         results.push({ action: "error", review, error: String(err) });
