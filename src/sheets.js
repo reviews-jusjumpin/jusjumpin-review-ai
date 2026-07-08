@@ -4,12 +4,17 @@ import { ENV } from "./config.js";
 const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 export const HEADER = [
+  // Auto-populated by system (A–N)
   "Ticket ID", "Created", "Store", "Rating", "Reviewer", "Language", "Topics",
   "Severity", "Summary", "Review text", "Draft reply (edit me)", "Status",
   "Review resource name", "Posted at",
+  // Auto-populated (O)
+  "Review Date",
+  // Manual — filled by CCTV/SOP team (P–S)
+  "Client Phone", "Client Response", "Gift Given", "Review Deleted?",
 ];
 
-// Column letters for the fields the workers read/write
+// Column letters for fields the system reads/writes
 const COL = { reply: "K", status: "L", reviewName: "M", postedAt: "N" };
 
 const sheet = () => `${BASE}/${ENV.spreadsheetId}`;
@@ -21,25 +26,37 @@ async function getValues(a1) {
 }
 
 export async function ensureHeader() {
-  const first = await getValues("A1:N1");
+  const first = await getValues("A1:S1");
   if (first.length === 0) {
-    await gfetch(`${range("A1:N1")}?valueInputOption=RAW`, {
+    // Empty sheet — write full header
+    await gfetch(`${range("A1:S1")}?valueInputOption=RAW`, {
       method: "PUT",
       data: { values: [HEADER] },
+    });
+  } else if ((first[0] || []).length < HEADER.length) {
+    // Existing sheet with old columns — append the new column headers only
+    const existingCount = (first[0] || []).length;
+    const startCol = String.fromCharCode(65 + existingCount); // e.g. O
+    const endCol = String.fromCharCode(65 + HEADER.length - 1); // S
+    await gfetch(`${range(`${startCol}1:${endCol}1`)}?valueInputOption=RAW`, {
+      method: "PUT",
+      data: { values: [HEADER.slice(existingCount)] },
     });
   }
 }
 
-/** Append one ticket row. ticket fields mirror HEADER order. */
+/** Append one ticket row. */
 export async function appendTicket(t) {
   await ensureHeader();
-  await gfetch(`${range("A:N")}:append?valueInputOption=USER_ENTERED`, {
+  await gfetch(`${range("A:S")}:append?valueInputOption=USER_ENTERED`, {
     method: "POST",
     data: {
       values: [[
         t.ticketId, t.created, t.store, t.rating, t.reviewer, t.language,
         t.topics.join(", "), t.severity, t.summary, t.reviewText, t.draftReply,
         "OPEN", t.reviewName, "",
+        t.reviewCreateTime || "",  // O: Review Date (from Google)
+        "", "", "", "",             // P–S: manual columns (blank)
       ]],
     },
   });
@@ -53,12 +70,12 @@ export async function ticketedReviewNames() {
 
 /** Rows a manager has set to APPROVED — ready to post. */
 export async function approvedDrafts() {
-  const rows = await getValues("A2:N");
+  const rows = await getValues("A2:S");
   const out = [];
   rows.forEach((r, i) => {
     if ((r[11] || "").trim().toUpperCase() === "APPROVED") {
       out.push({
-        rowNumber: i + 2, // 1-based, +1 for header
+        rowNumber: i + 2,
         ticketId: r[0],
         reply: r[10] || "",
         reviewName: r[12] || "",
@@ -69,7 +86,6 @@ export async function approvedDrafts() {
 }
 
 export async function markPosted(rowNumber) {
-  // null skips the cell in between (M, the review resource name) — it must stay intact
   await gfetch(
     `${range(`${COL.status}${rowNumber}:${COL.postedAt}${rowNumber}`)}?valueInputOption=USER_ENTERED`,
     { method: "PUT", data: { values: [["POSTED", null, new Date().toISOString()]] } }
@@ -77,7 +93,7 @@ export async function markPosted(rowNumber) {
 }
 
 export async function getStats() {
-  const rows = await getValues("A2:N");
+  const rows = await getValues("A2:S");
   const stats = { open: 0, approved: 0, posted: 0, total: 0, recent: [] };
   rows.forEach((r) => {
     if (!r[0]) return;

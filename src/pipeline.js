@@ -45,6 +45,7 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
     reviewText: review.comment,
     draftReply: analysis.reply,
     reviewName: review.name,
+    reviewCreateTime: review.createTime,
   };
 
   if (!dryRun) {
