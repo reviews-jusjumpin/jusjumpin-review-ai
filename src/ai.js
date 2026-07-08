@@ -1,6 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod/v4";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { ENV } from "./config.js";
 
 export const TOPICS = [
@@ -35,6 +34,20 @@ const ReviewAnalysis = z.object({
   reply: z.string().describe("the reply to post (or draft, if negative), following the brand rules"),
 });
 
+// Gemini native JSON schema — mirrors ReviewAnalysis above
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
+    severity: { type: "string", enum: ["none", "low", "medium", "high", "critical"] },
+    topics: { type: "array", items: { type: "string", enum: TOPICS } },
+    language: { type: "string" },
+    summary: { type: "string" },
+    reply: { type: "string" },
+  },
+  required: ["sentiment", "severity", "topics", "language", "summary", "reply"],
+};
+
 const SYSTEM = `You are the official review-response writer for Jus Jumpin, India's kids' trampoline park and family entertainment centre chain with 20+ locations across India. Parents bring children aged 2-14 for jumping, soft play, arcade games, and birthday parties.
 
 You receive one Google review at a time and produce a structured analysis plus a reply.
@@ -52,10 +65,10 @@ Reply rules:
 
 Severity rules: any mention of a child getting hurt, unsafe equipment, or legal action is "critical" regardless of star rating.`;
 
-let _client;
-function client() {
-  if (!_client) _client = new Anthropic();
-  return _client;
+let _genAI;
+function genAI() {
+  if (!_genAI) _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  return _genAI;
 }
 
 /**
@@ -70,22 +83,22 @@ export async function analyzeReview(review) {
     `Review text: ${review.comment ? `"""${review.comment}"""` : "(no text — rating only)"}`,
   ].join("\n");
 
-  const response = await client().messages.parse({
-    model: ENV.claudeModel,
-    max_tokens: 1024,
-    system: SYSTEM,
-    messages: [{ role: "user", content: userMsg }],
-    output_config: { format: zodOutputFormat(ReviewAnalysis) },
+  const model = genAI().getGenerativeModel({
+    model: ENV.geminiModel,
+    systemInstruction: SYSTEM,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+    },
   });
 
-  if (!response.parsed_output) {
-    throw new Error(`Claude returned unparseable output (stop_reason=${response.stop_reason})`);
-  }
-  return response.parsed_output;
+  const result = await model.generateContent(userMsg);
+  const json = JSON.parse(result.response.text());
+  return ReviewAnalysis.parse(json);
 }
 
 /**
- * Offline fallback used by the dry run when no ANTHROPIC_API_KEY is set —
+ * Offline fallback used by the dry run when no GEMINI_API_KEY is set —
  * rating-based routing with template replies, so the pipeline is testable
  * before any credentials exist. Not used in production.
  */

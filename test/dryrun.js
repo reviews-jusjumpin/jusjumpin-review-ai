@@ -1,6 +1,6 @@
 /**
  * Dry run: pushes the mock reviews through the full pipeline with all side
- * effects disabled. With ANTHROPIC_API_KEY set you see real Claude replies;
+ * effects disabled. With GEMINI_API_KEY set you see real Gemini replies;
  * without it, a rating-based heuristic shows the routing only.
  *
  *   npm run dryrun
@@ -15,14 +15,14 @@ import { processReview } from "../src/pipeline.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const reviews = JSON.parse(readFileSync(join(here, "mock-reviews.json"), "utf8"));
 
-const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
+const hasKey = Boolean(process.env.GEMINI_API_KEY);
 const analyze = hasKey ? analyzeReview : async (r) => analyzeReviewHeuristic(r);
 
 console.log("═".repeat(78));
 console.log("  JUS JUMPIN REVIEW-AI — DRY RUN");
 console.log(hasKey
-  ? "  Mode: LIVE CLAUDE (replies below are real model output)"
-  : "  Mode: HEURISTIC FALLBACK — set ANTHROPIC_API_KEY to see real AI replies");
+  ? "  Mode: LIVE GEMINI (replies below are real model output)"
+  : "  Mode: HEURISTIC FALLBACK — set GEMINI_API_KEY to see real AI replies");
 console.log("═".repeat(78));
 
 let tickets = 0, autos = 0;

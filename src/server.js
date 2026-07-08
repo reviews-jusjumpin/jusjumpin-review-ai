@@ -109,7 +109,7 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 </div>
 
 <div style="text-align:center;font-size:11px;color:#334155;margin-top:20px">
-  Jus Jumpin Review AI &nbsp;·&nbsp; Powered by Claude Sonnet &nbsp;·&nbsp; Built by Souvik Kundu
+  Jus Jumpin Review AI &nbsp;·&nbsp; Powered by Gemini &nbsp;·&nbsp; Built by Souvik Kundu
 </div>
 </body></html>`;
   res.send(html);

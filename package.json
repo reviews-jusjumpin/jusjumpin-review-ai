@@ -13,7 +13,7 @@
     "get-token": "node scripts/get-refresh-token.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@google/generative-ai": "^0.24.0",
     "express": "^4.22.2",
     "google-auth-library": "^10.7.0",
     "zod": "^3.25.76"

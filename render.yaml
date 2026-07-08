@@ -12,10 +12,10 @@ services:
         value: "0"
       - key: PORT
         value: "10000"
-      - key: ANTHROPIC_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
-      - key: CLAUDE_MODEL
-        value: claude-opus-4-8
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

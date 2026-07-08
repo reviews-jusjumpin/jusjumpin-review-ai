@@ -26,7 +26,7 @@ export function storeByName(name) {
 }
 
 export const ENV = {
-  claudeModel: process.env.CLAUDE_MODEL || "claude-opus-4-8",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
   gbpAccountId: process.env.GBP_ACCOUNT_ID,
   spreadsheetId: process.env.TICKET_SPREADSHEET_ID,
   sheetName: process.env.TICKET_SHEET_NAME || "Tickets",
