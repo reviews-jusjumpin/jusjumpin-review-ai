@@ -26,7 +26,7 @@ export function storeByName(name) {
 }
 
 export const ENV = {
-  geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
   gbpAccountId: process.env.GBP_ACCOUNT_ID,
   spreadsheetId: process.env.TICKET_SPREADSHEET_ID,
   sheetName: process.env.TICKET_SHEET_NAME || "Tickets",

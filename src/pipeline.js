@@ -55,8 +55,8 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
   return { action: "ticket", review, analysis, ticket };
 }
 
-// Gemini free tier = 5 req/min → pace to 1 per 13 s to stay safely under limit
-const GEMINI_PACE_MS = 13_000;
+// gemini-3.1-flash-lite free tier = 15 RPM → pace to 1 per 5 s
+const GEMINI_PACE_MS = 5_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
