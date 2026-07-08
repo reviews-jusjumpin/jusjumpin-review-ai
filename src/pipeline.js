@@ -57,6 +57,8 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
 
 // gemini-3.1-flash-lite free tier = 15 RPM → pace to 1 per 5 s
 const GEMINI_PACE_MS = 5_000;
+// GBP API — 3 s between store fetches to avoid hammering the endpoint
+const STORE_FETCH_DELAY_MS = 3_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -69,8 +71,11 @@ export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
   const ticketed = await sheets.ticketedReviewNames();
   const results = [];
   let callCount = 0;
+  let storeCount = 0;
   for (const store of ACTIVE_STORES) {
     if (!store.gbpLocationId) continue;
+    if (storeCount > 0) await sleep(STORE_FETCH_DELAY_MS);
+    storeCount++;
     const reviews = await gbp.listReviews(store);
     for (const review of reviews) {
       if (review.hasReply || ticketed.has(review.name)) continue;
