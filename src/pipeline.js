@@ -25,7 +25,7 @@ export function makeTicketId(store) {
  * run and by logs). Side effects are skipped when dryRun is true.
  */
 export async function processReview(review, store, { dryRun = ENV.dryRun, analyze = analyzeReview } = {}) {
-  const analysis = await analyze(review);
+  const analysis = await analyze(review, store);
 
   if (!needsTicket(review, analysis)) {
     if (!dryRun) await gbp.postReply(review.name, analysis.reply);
