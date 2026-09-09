@@ -33,4 +33,5 @@ export const ENV = {
   opsWhatsApp: process.env.OPS_WHATSAPP,
   tasksSecret: process.env.TASKS_SECRET,
   dryRun: process.env.DRY_RUN === "1",
+  targetRating: parseFloat(process.env.TARGET_RATING) || 4.8,
 };
