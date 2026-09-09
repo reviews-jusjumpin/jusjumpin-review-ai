@@ -60,8 +60,6 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 .btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
 .btn:hover{border-color:#6366f1}
 .pulse{display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;margin-right:6px;box-shadow:0 0 0 3px #22c55e33}
-.info-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #334155}
-.info-row:last-child{border-bottom:none}
 .info-row span:last-child{color:#94a3b8}
 </style>
 </head>
@@ -171,6 +169,7 @@ app.get("/ratings", async (_req, res) => {
     : 0;
   const meetingTarget = withRating.filter((r) => r.meetsTarget).length;
   const missingTarget = withRating.length - meetingTarget;
+  const totalFiveStarsNeeded = withRating.reduce((sum, r) => sum + (r.fiveStarsNeeded || 0), 0);
 
   // Worst-vs-their-own-target first, so the stores furthest off track bubble to the top.
   const sorted = [...ratings].sort((a, b) => {
@@ -243,12 +242,14 @@ ${fetchError ? `<div class="warn">⚠️ Could not fetch live ratings: ${fetchEr
   <div class="card"><div class="lbl">Meeting Target</div><div class="val green">${meetingTarget}</div></div>
   <div class="card"><div class="lbl">Below Target</div><div class="val red">${missingTarget}</div></div>
   <div class="card"><div class="lbl">Total Reviews</div><div class="val blue">${totalReviews.toLocaleString("en-IN")}</div></div>
+  <div class="card"><div class="lbl">5★ Needed (chain)</div><div class="val yellow">${totalFiveStarsNeeded.toLocaleString("en-IN")}</div></div>
 </div>
 
 <div class="section">
   <h2>Live Store Ratings — worst vs. target first</h2>
+  <p style="color:#64748b;font-size:12px;margin-bottom:10px">"5★ needed" = additional 5-star reviews required (holding everything else fixed) to pull the average up to target: <code style="color:#94a3b8">reviews × (target − rating) ÷ (5 − target)</code>, rounded up.</p>
   <table>
-    <tr><th>Store</th><th>State</th><th>Rating</th><th></th><th>Target</th><th>vs Target</th><th>Reviews</th></tr>
+    <tr><th>Store</th><th>State</th><th>Rating</th><th></th><th>Target</th><th>vs Target</th><th>Reviews</th><th>5★ Needed</th></tr>
     ${sorted.map((r) => `
     <tr>
       <td><b>${r.code}</b> &nbsp;${r.name}</td>
@@ -258,6 +259,7 @@ ${fetchError ? `<div class="warn">⚠️ Could not fetch live ratings: ${fetchEr
       <td style="color:#64748b">${r.target.toFixed(1)}</td>
       <td class="${r.meetsTarget ? "hit" : r.meetsTarget === false ? "miss" : ""}">${r.rating != null ? (r.rating - r.target >= 0 ? "+" : "") + (r.rating - r.target).toFixed(2) : "—"}</td>
       <td style="color:#94a3b8">${(r.reviewCount || 0).toLocaleString("en-IN")}</td>
+      <td style="${r.fiveStarsNeeded === 0 ? "color:#22c55e;font-weight:700" : r.fiveStarsNeeded ? "color:#f59e0b;font-weight:700" : "color:#64748b"}">${r.fiveStarsNeeded === 0 ? "✓ Met" : r.fiveStarsNeeded != null ? r.fiveStarsNeeded.toLocaleString("en-IN") : "—"}</td>
     </tr>`).join("")}
   </table>
 </div>
