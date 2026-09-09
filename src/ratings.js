@@ -4,20 +4,38 @@ import { getRatingSnapshots, upsertRatingSnapshots, appendRatingDrops } from "./
 
 const REVIEWS_BASE = "https://mybusiness.googleapis.com/v4";
 
+/**
+ * How many additional 5★ reviews (with everything else unchanged) would push
+ * the average from `rating` up to `target`. Derived from
+ *   (rating*count + 5*x) / (count + x) >= target  =>  x >= count*(target-rating) / (5-target)
+ * Returns 0 if already at/above target, null if unratable (target is 5.0 and
+ * rating isn't — no finite number of 5★ adds can move a mixed average to a
+ * perfect 5.0).
+ */
+function fiveStarsNeeded(rating, reviewCount, target) {
+  if (rating == null) return null;
+  if (rating >= target) return 0;
+  if (target >= 5) return null;
+  const needed = (reviewCount * (target - rating)) / (5 - target);
+  return Math.max(0, Math.ceil(needed - 1e-9)); // tiny epsilon guards against float rounding pushing the ceil up by 1
+}
+
 /** pageSize=1 is enough — averageRating/totalReviewCount summarize the whole location. */
 async function fetchStoreRating(store, target) {
   const data = await gfetch(
     `${REVIEWS_BASE}/accounts/${store.gbpAccountId || ENV.gbpAccountId}/locations/${store.gbpLocationId}/reviews?pageSize=1`
   );
   const rating = typeof data.averageRating === "number" ? data.averageRating : null;
+  const reviewCount = data.totalReviewCount ?? 0;
   return {
     code: store.code,
     name: store.name,
     state: store.state,
     rating,
-    reviewCount: data.totalReviewCount ?? 0,
+    reviewCount,
     target,
     meetsTarget: rating == null ? null : rating >= target,
+    fiveStarsNeeded: fiveStarsNeeded(rating, reviewCount, target),
   };
 }
 
@@ -37,7 +55,7 @@ export async function fetchLiveRatings({ concurrency = 5, target } = {}) {
       try {
         results.push(await fetchStoreRating(store, storeTarget));
       } catch (err) {
-        results.push({ code: store.code, name: store.name, state: store.state, rating: null, reviewCount: 0, target: storeTarget, meetsTarget: null, error: String(err) });
+        results.push({ code: store.code, name: store.name, state: store.state, rating: null, reviewCount: 0, target: storeTarget, meetsTarget: null, fiveStarsNeeded: null, error: String(err) });
       }
     }
   }
