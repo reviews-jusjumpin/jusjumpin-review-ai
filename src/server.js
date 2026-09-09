@@ -2,10 +2,12 @@ import express from "express";
 import { ENV, storeByLocationId, ACTIVE_STORES } from "./config.js";
 import { getReview } from "./gbp.js";
 import { processReview, pollAllStores, postApprovedReplies } from "./pipeline.js";
-import { getStats } from "./sheets.js";
+import { getStats, getRatingDropLog, getSetting, setSetting } from "./sheets.js";
+import { fetchLiveRatings, checkForDrops } from "./ratings.js";
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // In-memory state for monitoring
 const state = {
@@ -101,6 +103,7 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 <div class="section">
   <h2>Quick Links</h2>
   <div class="links">
+    <a class="btn" href="/ratings">⭐ Ratings Dashboard</a>
     <a class="btn" href="https://docs.google.com/spreadsheets/d/${ENV.spreadsheetId}" target="_blank">📋 Google Sheets — Ticket Log</a>
     <a class="btn" href="https://dashboard.render.com/web/srv-d95np94vikkc73dvb25g/logs" target="_blank">📜 Render Logs</a>
     <a class="btn" href="https://console.cron-job.org/jobs" target="_blank">⏰ Cron Jobs</a>
@@ -110,6 +113,174 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 
 <div style="text-align:center;font-size:11px;color:#334155;margin-top:20px">
   Jus Jumpin Review AI &nbsp;·&nbsp; Powered by Gemini &nbsp;·&nbsp; Built by Souvik Kundu
+</div>
+</body></html>`;
+  res.send(html);
+});
+
+app.get("/api/ratings", async (req, res) => {
+  try {
+    let target = req.query.target ? parseFloat(req.query.target) : undefined;
+    if (target === undefined) {
+      const saved = await getSetting("targetRating").catch(() => null);
+      if (saved != null) target = parseFloat(saved);
+    }
+    const ratings = await fetchLiveRatings({ target });
+    res.json({ ratings, fetchedAt: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.get("/api/rating-drops", async (_req, res) => {
+  try {
+    const drops = await getRatingDropLog();
+    res.json({ drops });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/ratings/target", async (req, res) => {
+  const value = parseFloat(req.body?.target);
+  if (Number.isFinite(value) && value >= 1 && value <= 5) {
+    try { await setSetting("targetRating", String(value)); } catch (err) { console.error("save target failed:", err); }
+  }
+  res.redirect("/ratings");
+});
+
+app.get("/ratings", async (_req, res) => {
+  let savedTarget = null;
+  try { savedTarget = await getSetting("targetRating"); } catch {}
+  const target = savedTarget != null ? parseFloat(savedTarget) : undefined;
+
+  let ratings = [];
+  let drops = [];
+  let fetchError = null;
+  try {
+    [ratings, drops] = await Promise.all([fetchLiveRatings({ target }), getRatingDropLog({ limit: 30 })]);
+  } catch (err) {
+    fetchError = String(err);
+  }
+
+  const displayTarget = target ?? ENV.targetRating;
+  const withRating = ratings.filter((r) => r.rating != null);
+  const totalReviews = withRating.reduce((sum, r) => sum + (r.reviewCount || 0), 0);
+  const chainAvg = totalReviews
+    ? withRating.reduce((sum, r) => sum + r.rating * r.reviewCount, 0) / totalReviews
+    : 0;
+  const meetingTarget = withRating.filter((r) => r.meetsTarget).length;
+  const missingTarget = withRating.length - meetingTarget;
+
+  // Worst-vs-their-own-target first, so the stores furthest off track bubble to the top.
+  const sorted = [...ratings].sort((a, b) => {
+    const da = a.rating == null ? -99 : a.rating - a.target;
+    const db = b.rating == null ? -99 : b.rating - b.target;
+    return da - db;
+  });
+  const ratingColor = (r, t) => (r == null ? "#64748b" : r >= t ? "#22c55e" : r >= t - 0.3 ? "#f59e0b" : "#ef4444");
+  const stars = (r) => {
+    if (r == null) return '<span style="color:#64748b">—</span>';
+    const full = Math.round(r);
+    return "★".repeat(full) + "☆".repeat(5 - full);
+  };
+  const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) : "—");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JJ Review AI — Ratings Dashboard</title>
+<meta http-equiv="refresh" content="300">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:20px;min-height:100vh}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.sub{font-size:13px;color:#64748b;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.card{background:#1e293b;border-radius:10px;padding:16px;text-align:center}
+.card .val{font-size:32px;font-weight:800;margin:6px 0}
+.card .lbl{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.green{color:#22c55e}.yellow{color:#f59e0b}.red{color:#ef4444}.blue{color:#38bdf8}
+.section{background:#1e293b;border-radius:10px;padding:16px;margin-bottom:16px}
+.section h2{font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em;padding:6px 8px;border-bottom:1px solid #334155}
+td{padding:8px;border-bottom:1px solid #334155}
+tr:last-child td{border-bottom:none}
+.stars{letter-spacing:1px}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155;margin-top:4px}
+.btn:hover{border-color:#6366f1}
+.warn{background:#7f1d1d33;border:1px solid #ef444455;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#fca5a5}
+.arrow{color:#64748b;margin:0 6px}
+.target-form{display:flex;align-items:center;gap:10px;margin-bottom:20px;background:#1e293b;border-radius:10px;padding:12px 16px}
+.target-form label{font-size:13px;color:#94a3b8}
+.target-form input{width:80px;padding:6px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:14px}
+.target-form button{padding:7px 16px;border-radius:6px;border:none;background:#6366f1;color:#fff;font-weight:600;font-size:13px;cursor:pointer}
+.target-form button:hover{background:#4f46e5}
+.target-form .hint{font-size:12px;color:#64748b;margin-left:auto}
+.miss{color:#ef4444;font-weight:600}
+.hit{color:#22c55e;font-weight:600}
+</style>
+</head>
+<body>
+<h1>⭐ Jus Jumpin — Ratings Dashboard</h1>
+<div class="sub">Live from Google Business Profile &nbsp;·&nbsp; Auto-refreshes every 5 min &nbsp;·&nbsp; ${ratings.length} stores tracked</div>
+
+${fetchError ? `<div class="warn">⚠️ Could not fetch live ratings: ${fetchError}</div>` : ""}
+
+<form class="target-form" method="post" action="/ratings/target">
+  <label for="target">Target rating</label>
+  <input type="number" step="0.1" min="1" max="5" name="target" id="target" value="${displayTarget}">
+  <button type="submit">Set Target</button>
+  <span class="hint">Saved to the sheet — applies chain-wide until changed again.${savedTarget == null ? " (currently using default 4.8)" : ""}</span>
+</form>
+
+<div class="grid">
+  <div class="card"><div class="lbl">Chain Avg Rating</div><div class="val ${chainAvg >= displayTarget ? "green" : chainAvg >= displayTarget - 0.3 ? "yellow" : "red"}">${chainAvg ? chainAvg.toFixed(2) : "—"}</div></div>
+  <div class="card"><div class="lbl">Target</div><div class="val" style="color:#e2e8f0">${displayTarget.toFixed(1)}★</div></div>
+  <div class="card"><div class="lbl">Meeting Target</div><div class="val green">${meetingTarget}</div></div>
+  <div class="card"><div class="lbl">Below Target</div><div class="val red">${missingTarget}</div></div>
+  <div class="card"><div class="lbl">Total Reviews</div><div class="val blue">${totalReviews.toLocaleString("en-IN")}</div></div>
+</div>
+
+<div class="section">
+  <h2>Live Store Ratings — worst vs. target first</h2>
+  <table>
+    <tr><th>Store</th><th>State</th><th>Rating</th><th></th><th>Target</th><th>vs Target</th><th>Reviews</th></tr>
+    ${sorted.map((r) => `
+    <tr>
+      <td><b>${r.code}</b> &nbsp;${r.name}</td>
+      <td style="color:#94a3b8">${r.state || "—"}</td>
+      <td style="color:${ratingColor(r.rating, r.target)};font-weight:700">${r.rating != null ? r.rating.toFixed(2) : "—"}</td>
+      <td class="stars" style="color:${ratingColor(r.rating, r.target)}">${stars(r.rating)}</td>
+      <td style="color:#64748b">${r.target.toFixed(1)}</td>
+      <td class="${r.meetsTarget ? "hit" : r.meetsTarget === false ? "miss" : ""}">${r.rating != null ? (r.rating - r.target >= 0 ? "+" : "") + (r.rating - r.target).toFixed(2) : "—"}</td>
+      <td style="color:#94a3b8">${(r.reviewCount || 0).toLocaleString("en-IN")}</td>
+    </tr>`).join("")}
+  </table>
+</div>
+
+<div class="section">
+  <h2>Rating Drop Log (last 30)</h2>
+  ${drops.length === 0 ? '<p style="color:#64748b;font-size:13px">No drops logged yet. The background checker (POST /tasks/ratings) needs to run at least twice to detect a change — set it up on cron-job.org like the other tasks.</p>' : `
+  <table>
+    <tr><th>Detected</th><th>Store</th><th>Change</th><th>Reviews</th></tr>
+    ${drops.map((d) => `
+    <tr>
+      <td style="color:#94a3b8">${fmtTime(d.detectedAt)}</td>
+      <td><b>${d.code}</b> &nbsp;${d.name}</td>
+      <td><span style="color:#94a3b8">${d.oldRating.toFixed(2)}</span><span class="arrow">→</span><span style="color:#ef4444;font-weight:700">${d.newRating.toFixed(2)}</span></td>
+      <td style="color:#94a3b8">${d.oldReviewCount} → ${d.newReviewCount}</td>
+    </tr>`).join("")}
+  </table>`}
+</div>
+
+<a class="btn" href="/status">← Back to Monitor</a>
+
+<div style="text-align:center;font-size:11px;color:#334155;margin-top:20px">
+  Jus Jumpin Review AI &nbsp;·&nbsp; Ratings pulled live from Google Business Profile
 </div>
 </body></html>`;
   res.send(html);
@@ -182,6 +353,14 @@ app.post("/tasks/approvals", requireSecret, (_req, res) => {
       console.log(`approvals: posted ${posted}`);
     })
     .catch((err) => console.error("approvals error:", err));
+});
+
+/** Live rating snapshot + drop detection. Run every few hours. */
+app.post("/tasks/ratings", requireSecret, (_req, res) => {
+  res.json({ ok: true, message: "rating check started" }); // respond immediately
+  checkForDrops()
+    .then(({ drops }) => console.log(`ratings: checked ${ACTIVE_STORES.length} stores, ${drops.length} drop(s) detected`))
+    .catch((err) => console.error("ratings check error:", err));
 });
 
 const port = process.env.PORT || 8080;
