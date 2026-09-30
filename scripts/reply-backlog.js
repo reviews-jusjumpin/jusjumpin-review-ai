@@ -5,7 +5,7 @@ import { ACTIVE_STORES, ENV } from "../src/config.js";
 import { gfetch } from "../src/google-auth.js";
 import { normalizeReview } from "../src/gbp.js";
 import { processReview } from "../src/pipeline.js";
-import { ensureHeader, ticketedReviewNames } from "../src/sheets.js";
+import { ensureHeader, ticketedReviewNames, hiddenReviewNames } from "../src/sheets.js";
 
 const REVIEWS_BASE = "https://mybusiness.googleapis.com/v4";
 const SKIP_NEWEST = 60; // the poller only reads page 1 (newest 50) — stay clear of it so the two never race
@@ -38,12 +38,13 @@ async function main() {
 
   if (live) await ensureHeader();
   const ticketed = await ticketedReviewNames();
+  const hidden = await hiddenReviewNames();
   let done = 0;
-  const tally = { auto_reply: 0, ticket: 0, error: 0 };
+  const tally = { auto_reply: 0, ticket: 0, hidden: 0, error: 0 };
 
   for (const store of stores) {
     const raw = await allReviews(store);
-    const backlog = raw.slice(SKIP_NEWEST).filter((r) => !r.reviewReply && !ticketed.has(r.name));
+    const backlog = raw.slice(SKIP_NEWEST).filter((r) => !r.reviewReply && !ticketed.has(r.name) && !hidden.has(r.name));
     const todo = backlog.slice(0, LIMIT_PER_STORE);
     console.log(`[${store.code}] ${raw.length} reviews · ${backlog.length} unreplied beyond newest ${SKIP_NEWEST} · processing ${Math.min(todo.length, MAX - done)}`);
 
@@ -80,7 +81,7 @@ async function main() {
   summary();
 
   function summary() {
-    console.log(`\nDone. ${done} processed — auto-replied ${tally.auto_reply}, tickets ${tally.ticket}, errors ${tally.error}${live ? "" : " (dry run)"}`);
+    console.log(`\nDone. ${done} processed — auto-replied ${tally.auto_reply}, tickets ${tally.ticket}, hidden by Google ${tally.hidden}, errors ${tally.error}${live ? "" : " (dry run)"}`);
   }
 }
 
