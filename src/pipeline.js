@@ -14,6 +14,9 @@ export function needsTicket(review, analysis) {
   );
 }
 
+// Google spam-filtered reviews stay in the API list but reject replies with 404.
+const isHiddenByGoogle = (err) => err?.response?.status === 404 || /Requested entity was not found/i.test(String(err));
+
 export function makeTicketId(store) {
   const d = new Date().toISOString().slice(0, 10).replaceAll("-", "");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -28,7 +31,15 @@ export async function processReview(review, store, { dryRun = ENV.dryRun, analyz
   const analysis = await analyze(review, store);
 
   if (!needsTicket(review, analysis)) {
-    if (!dryRun) await gbp.postReply(review.name, analysis.reply);
+    if (!dryRun) {
+      try {
+        await gbp.postReply(review.name, analysis.reply);
+      } catch (err) {
+        if (!isHiddenByGoogle(err)) throw err;
+        await sheets.appendHiddenReview({ reviewName: review.name, store: store.name, rating: review.rating, reviewDate: review.createTime });
+        return { action: "hidden", review, analysis };
+      }
+    }
     return { action: "auto_reply", review, analysis };
   }
 
@@ -69,6 +80,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
   await sheets.ensureHeader(); // adds new columns to existing sheet if missing
   const ticketed = await sheets.ticketedReviewNames();
+  const hidden = await sheets.hiddenReviewNames();
   const results = [];
   let callCount = 0;
   let storeCount = 0;
@@ -78,7 +90,7 @@ export async function pollAllStores({ dryRun = ENV.dryRun } = {}) {
     storeCount++;
     const reviews = await gbp.listReviews(store);
     for (const review of reviews) {
-      if (review.hasReply || ticketed.has(review.name)) continue;
+      if (review.hasReply || ticketed.has(review.name) || hidden.has(review.name)) continue;
       if (callCount > 0) await sleep(GEMINI_PACE_MS);
       callCount++;
       try {
@@ -106,6 +118,11 @@ export async function postApprovedReplies({ dryRun = ENV.dryRun } = {}) {
       }
       results.push({ action: "posted", ticketId: d.ticketId });
     } catch (err) {
+      if (isHiddenByGoogle(err) && !dryRun) {
+        await sheets.markStatus(d.rowNumber, "HIDDEN BY GOOGLE"); // stops the 15-min job retrying it forever
+        results.push({ action: "hidden", ticketId: d.ticketId });
+        continue;
+      }
       results.push({ action: "error", ticketId: d.ticketId, error: String(err) });
     }
   }

@@ -11,7 +11,7 @@ const CHUNK_LIMIT = 3500; // WhatsApp caps a text message at 4096 chars
 export const istDate = (ms = Date.now()) => new Date(ms + IST_MS).toISOString().slice(0, 10);
 export const yesterdayIST = () => istDate(Date.now() - 86_400_000);
 
-function istTime(iso) {
+export function istTime(iso) {
   const d = new Date(Date.parse(iso) + IST_MS);
   let h = d.getUTCHours();
   const m = String(d.getUTCMinutes()).padStart(2, "0");
@@ -20,7 +20,7 @@ function istTime(iso) {
   return `${h}:${m} ${ap}`;
 }
 
-function prettyDate(date) {
+export function prettyDate(date) {
   const [y, mo, d] = date.split("-").map(Number);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${d} ${months[mo - 1]} ${y}`;

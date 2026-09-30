@@ -103,6 +103,11 @@ function genAI() {
   return _genAI;
 }
 
+/**
+ * Classify a review and generate a reply in one structured call.
+ * review: { rating: 1-5, comment, reviewerName, storeName }
+ * store:  the store config object (used to pick the right system prompt)
+ */
 export async function analyzeReview(review, store) {
   const isHotel = store?.businessType === "hotel";
   const storeLabel = isHotel ? review.storeName : `Jus Jumpin ${review.storeName}`;
@@ -119,12 +124,26 @@ export async function analyzeReview(review, store) {
     generationConfig: { responseMimeType: "application/json" },
   });
 
-  const result = await model.generateContent(userMsg);
+  let result;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      result = await model.generateContent(userMsg);
+      break;
+    } catch (err) {
+      // 503 "high demand" is transient; 429 quota errors are not, so don't retry those
+      if (attempt >= 2 || !/\b503\b|high demand/i.test(String(err))) throw err;
+      await new Promise((r) => setTimeout(r, 15_000 * (attempt + 1)));
+    }
+  }
   const text = result.response.text();
   const json = JSON.parse(text);
   return ReviewAnalysis.parse(json);
 }
 
+/**
+ * Offline fallback — rating-based heuristic when no GEMINI_API_KEY is set.
+ * Not used in production.
+ */
 export function analyzeReviewHeuristic(review) {
   const negative = review.rating <= 3;
   return {

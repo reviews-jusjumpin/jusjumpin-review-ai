@@ -102,6 +102,13 @@ export async function approvedDrafts() {
   return out.filter((d) => d.reviewName && d.reply.trim());
 }
 
+export async function markStatus(rowNumber, status) {
+  await gfetch(`${range(`${COL.status}${rowNumber}`)}?valueInputOption=RAW`, {
+    method: "PUT",
+    data: { values: [[status]] },
+  });
+}
+
 export async function markPosted(rowNumber) {
   await gfetch(
     `${range(`${COL.status}${rowNumber}:${COL.postedAt}${rowNumber}`)}?valueInputOption=USER_ENTERED`,
@@ -216,6 +223,32 @@ export async function getRatingDropLog({ limit = 50 } = {}) {
     }));
 }
 
+// ── Reviews Google has hidden (spam-filtered): still listed by the API, but replies 404 ──
+const HIDDEN_SHEET = "HiddenReviews";
+const HIDDEN_HEADER = ["Review resource name", "Store", "Rating", "Review date", "Detected at"];
+
+let _hiddenSheetReady = false;
+async function ensureHiddenSheet() {
+  if (_hiddenSheetReady) return;
+  const titles = await sheetTitles();
+  if (!titles.has(HIDDEN_SHEET)) await createSheetTab(HIDDEN_SHEET, HIDDEN_HEADER);
+  _hiddenSheetReady = true;
+}
+
+export async function hiddenReviewNames() {
+  await ensureHiddenSheet();
+  const rows = await getValues("A2:A", HIDDEN_SHEET);
+  return new Set(rows.map((r) => r[0]).filter(Boolean));
+}
+
+export async function appendHiddenReview({ reviewName, store, rating, reviewDate }) {
+  await ensureHiddenSheet();
+  await gfetch(`${range("A:E", HIDDEN_SHEET)}:append?valueInputOption=RAW`, {
+    method: "POST",
+    data: { values: [[reviewName, store, rating, reviewDate || "", new Date().toISOString()]] },
+  });
+}
+
 // ── Settings tab: small key/value store (e.g. manually-set target rating) ──
 const SETTINGS_SHEET = "Settings";
 const SETTINGS_HEADER = ["Key", "Value"];
@@ -258,7 +291,7 @@ export async function getStats() {
     const status = (r[11] || "OPEN").trim().toUpperCase();
     if (status === "POSTED") stats.posted++;
     else if (status === "APPROVED") stats.approved++;
-    else stats.open++;
+    else if (status !== "HIDDEN BY GOOGLE") stats.open++;
     if (stats.recent.length < 8) {
       stats.recent.push({
         id: r[0], created: r[1], store: r[2], rating: r[3],

@@ -5,6 +5,7 @@ import { processReview, pollAllStores, postApprovedReplies } from "./pipeline.js
 import { getStats, getRatingDropLog, getSetting, setSetting } from "./sheets.js";
 import { fetchLiveRatings, checkForDrops } from "./ratings.js";
 import { collectNegativeReviews, formatDigest, yesterdayIST, istDate } from "./digest.js";
+import { reportCards, REPORT_CARD_CSS } from "./report-card.js";
 
 const app = express();
 app.use(express.json());
@@ -306,10 +307,13 @@ app.get("/negative-reviews", async (req, res) => {
 
   let data = null;
   let messages = [];
+  let cards = [];
+  let captions = [];
   let error = null;
   try {
     data = await collectNegativeReviews(date);
     messages = formatDigest(data);
+    ({ cards, captions } = reportCards(data));
   } catch (err) {
     error = String(err);
   }
@@ -343,6 +347,10 @@ textarea{width:100%;background:#0b1220;color:#e2e8f0;border:1px solid #334155;bo
 .warn{background:#7f1d1d33;border:1px solid #ef444455;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#fca5a5}
 .btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
 .hint{font-size:12px;color:#64748b;margin-bottom:14px}
+.sec{font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:22px 0 8px}
+.rc-wrap{overflow-x:auto;border-radius:14px;margin-bottom:10px}
+.dl{background:#334155;color:#e2e8f0}
+${REPORT_CARD_CSS}
 </style>
 </head>
 <body>
@@ -363,6 +371,18 @@ ${error ? `<div class="warn">⚠️ Could not build the report: ${escapeHtml(err
   <div class="card"><div class="lbl">Outlets checked</div><div class="val blue">${data.storeCount}</div></div>
 </div>
 ${data.failedStores.length ? `<div class="warn">⚠️ Could not check: ${escapeHtml(data.failedStores.join(", "))} — reload to retry before sending.</div>` : ""}
+
+<div class="sec">📸 Screenshot version</div>
+<div class="hint">Phone: tap <b>Share image</b> → WhatsApp → pick the group. PC: <b>Copy image</b>, then Ctrl+V in the WhatsApp group.${cards.length > 1 ? ` Busy day — send all ${cards.length} images in order.` : ""}</div>
+${cards.map((c, i) => `
+<div class="rc-wrap">${c}</div>
+<div class="actions" style="margin-bottom:16px">
+  <button class="copy" type="button" onclick="copyImg(${i}, this)">📋 Copy image${cards.length > 1 ? ` ${i + 1}` : ""}</button>
+  <button class="wa" type="button" onclick="shareImg(${i}, this)">📤 Share image${cards.length > 1 ? ` ${i + 1}` : ""}</button>
+  <button class="dl" type="button" onclick="downloadImg(${i}, this)">⬇ Download</button>
+</div>`).join("")}
+
+<div class="sec">💬 Text version</div>
 <div class="hint">Tap <b>Send via WhatsApp</b>, choose the boss group, send. Or <b>Copy</b> and paste it in.${messages.length > 1 ? ` Long day — send all ${messages.length} parts in order.` : ""}</div>
 ${messages.map((m, i) => `
 <div class="msg">
@@ -375,7 +395,42 @@ ${messages.map((m, i) => `
 
 <a class="btn" href="/status">← Back to Monitor</a>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+const CAPTIONS = ${JSON.stringify(captions).replace(/</g, "\\u003c")};
+const FILE_BASE = 'negative-reviews-${date}';
+const fileName = (i) => FILE_BASE + (CAPTIONS.length > 1 ? '-' + (i + 1) : '') + '.png';
+function renderCard(i) {
+  // the on-screen preview is zoomed to fit small screens; the image is always rendered at full size
+  const opts = { scale: 2, backgroundColor: '#ffffff', onclone: (doc) => { doc.getElementById('rc' + i).style.zoom = 1; } };
+  return html2canvas(document.getElementById('rc' + i), opts).then((c) => new Promise((r) => c.toBlob(r, 'image/png')));
+}
+function fitCards() {
+  document.querySelectorAll('.rc').forEach((el) => { el.style.zoom = Math.min(1, el.parentElement.clientWidth / 600); });
+}
+fitCards();
+window.addEventListener('resize', fitCards);
+function flash(btn, msg) { const old = btn.textContent; btn.textContent = msg; setTimeout(() => (btn.textContent = old), 2500); }
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function copyImg(i, btn) {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderCard(i) })]);
+    flash(btn, '✅ Copied — paste in WhatsApp');
+  } catch (e) { flash(btn, 'Copy blocked here — use Download'); }
+}
+async function shareImg(i, btn) {
+  const blob = await renderCard(i);
+  const file = new File([blob], fileName(i), { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: CAPTIONS[i] }); } catch (e) { /* user closed the share sheet */ }
+  } else { saveBlob(blob, file.name); flash(btn, 'Sharing not supported — downloaded'); }
+}
+async function downloadImg(i, btn) { saveBlob(await renderCard(i), fileName(i)); flash(btn, '✅ Downloaded'); }
 function copyMsg(id, btn) {
   const t = document.getElementById(id);
   const done = () => { const old = btn.textContent; btn.textContent = '✅ Copied'; setTimeout(() => (btn.textContent = old), 1500); };
