@@ -1,6 +1,6 @@
 // One-time backlog clear: replies to unreplied reviews OLDER than the newest
-// ~50 that the hourly poller already covers. Dry run unless LIVE=1.
-//   STORE_FILTER=M5,UDR LIVE=1 node --env-file=.env scripts/reply-backlog.js
+// ~50 that the hourly poller already covers. Dry run unless --live.
+//   node --env-file=.env scripts/reply-backlog.js M5,UDR --live
 import { ACTIVE_STORES, ENV } from "../src/config.js";
 import { gfetch } from "../src/google-auth.js";
 import { normalizeReview } from "../src/gbp.js";
@@ -12,7 +12,9 @@ const SKIP_NEWEST = 60; // the poller only reads page 1 (newest 50) — stay cle
 const MAX = parseInt(process.env.MAX_REVIEWS || "500", 10); // Gemini free tier is 1000/day, shared with the poller
 const LIMIT_PER_STORE = parseInt(process.env.LIMIT_PER_STORE || "0", 10) || Infinity;
 const PACE_MS = 5000;
-const live = process.env.LIVE === "1";
+const args = process.argv.slice(2);
+const live = args.includes("--live") || process.env.LIVE === "1";
+const storeArg = args.find((a) => !a.startsWith("--")) || process.env.STORE_FILTER || "";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function allReviews(store) {
@@ -29,10 +31,10 @@ async function allReviews(store) {
 }
 
 async function main() {
-  const codes = (process.env.STORE_FILTER || "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (!codes.length) throw new Error("Set STORE_FILTER, e.g. STORE_FILTER=M5,UDR");
+  const codes = storeArg.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!codes.length) throw new Error("Pass store codes, e.g. node --env-file=.env scripts/reply-backlog.js M5,UDR --live");
   const stores = ACTIVE_STORES.filter((s) => s.gbpLocationId && codes.includes(s.code));
-  console.log(`${live ? "LIVE — replies WILL be posted" : "DRY RUN — nothing posted (set LIVE=1)"} · stores: ${stores.map((s) => s.code).join(", ")} · cap ${MAX}`);
+  console.log(`${live ? "LIVE — replies WILL be posted" : "DRY RUN — nothing posted (add --live)"} · stores: ${stores.map((s) => s.code).join(", ")} · cap ${MAX}`);
 
   if (live) await ensureHeader();
   const ticketed = await ticketedReviewNames();
