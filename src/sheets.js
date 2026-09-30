@@ -68,6 +68,23 @@ export async function ticketedReviewNames() {
   return new Set(rows.map((r) => r[0]).filter(Boolean));
 }
 
+/** reviewId -> ticket summary/status. Keyed on the id, not the full name, so it survives an account-id change. */
+export async function ticketsByReviewId() {
+  const rows = await getValues("A2:M");
+  const map = new Map();
+  for (const r of rows) {
+    const reviewId = (r[12] || "").split("/").pop();
+    if (!reviewId) continue;
+    map.set(reviewId, {
+      ticketId: r[0] || "",
+      severity: r[7] || "",
+      summary: r[8] || "",
+      status: (r[11] || "OPEN").trim().toUpperCase(),
+    });
+  }
+  return map;
+}
+
 /** Rows a manager has set to APPROVED — ready to post. */
 export async function approvedDrafts() {
   const rows = await getValues("A2:S");

@@ -4,6 +4,7 @@ import { getReview } from "./gbp.js";
 import { processReview, pollAllStores, postApprovedReplies } from "./pipeline.js";
 import { getStats, getRatingDropLog, getSetting, setSetting } from "./sheets.js";
 import { fetchLiveRatings, checkForDrops } from "./ratings.js";
+import { collectNegativeReviews, formatDigest, yesterdayIST, istDate } from "./digest.js";
 
 const app = express();
 app.use(express.json());
@@ -60,6 +61,8 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 .btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
 .btn:hover{border-color:#6366f1}
 .pulse{display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;margin-right:6px;box-shadow:0 0 0 3px #22c55e33}
+.info-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #334155}
+.info-row:last-child{border-bottom:none}
 .info-row span:last-child{color:#94a3b8}
 </style>
 </head>
@@ -102,6 +105,7 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
   <h2>Quick Links</h2>
   <div class="links">
     <a class="btn" href="/ratings">⭐ Ratings Dashboard</a>
+    <a class="btn" href="/negative-reviews">🔴 Daily Negative Review Report</a>
     <a class="btn" href="https://docs.google.com/spreadsheets/d/${ENV.spreadsheetId}" target="_blank">📋 Google Sheets — Ticket Log</a>
     <a class="btn" href="https://dashboard.render.com/web/srv-d95np94vikkc73dvb25g/logs" target="_blank">📜 Render Logs</a>
     <a class="btn" href="https://console.cron-job.org/jobs" target="_blank">⏰ Cron Jobs</a>
@@ -288,6 +292,101 @@ ${fetchError ? `<div class="warn">⚠️ Could not fetch live ratings: ${fetchEr
   res.send(html);
 });
 
+const escapeHtml = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** Ready-to-send daily negative-review report — copied into the boss's WhatsApp group by hand until the API is set up. */
+app.get("/negative-reviews", async (req, res) => {
+  const today = istDate();
+  const asked = String(req.query.date || "");
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked <= today ? asked : yesterdayIST();
+  const shift = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const prev = shift(date, -1);
+  const next = shift(date, 1);
+
+  let data = null;
+  let messages = [];
+  let error = null;
+  try {
+    data = await collectNegativeReviews(date);
+    messages = formatDigest(data);
+  } catch (err) {
+    error = String(err);
+  }
+  const pending = data ? data.reviews.filter((r) => !r.replied).length : 0;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JJ Review AI — Negative Review Report</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:20px;min-height:100vh;max-width:760px;margin:0 auto}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.sub{font-size:13px;color:#64748b;margin-bottom:18px}
+.nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#1e293b;border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.nav a,.nav button{padding:7px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px;text-decoration:none;cursor:pointer}
+.nav a.off{opacity:.35;pointer-events:none}
+.nav input{padding:6px 8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.card{background:#1e293b;border-radius:10px;padding:12px;text-align:center}
+.card .val{font-size:26px;font-weight:800;margin-top:4px}
+.card .lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.red{color:#ef4444}.yellow{color:#f59e0b}.blue{color:#38bdf8}
+.msg{background:#1e293b;border-radius:10px;padding:14px;margin-bottom:14px}
+textarea{width:100%;background:#0b1220;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:12px;font:13px/1.5 'Segoe UI',system-ui,sans-serif;resize:vertical}
+.actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.actions button,.actions a{flex:1;min-width:150px;text-align:center;padding:11px 16px;border-radius:8px;font-weight:700;font-size:14px;border:none;cursor:pointer;text-decoration:none}
+.copy{background:#6366f1;color:#fff}
+.wa{background:#22c55e;color:#062e16}
+.warn{background:#7f1d1d33;border:1px solid #ef444455;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#fca5a5}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
+.hint{font-size:12px;color:#64748b;margin-bottom:14px}
+</style>
+</head>
+<body>
+<h1>🔴 Daily Negative Review Report</h1>
+<div class="sub">Every 1★–3★ Google review across all outlets for one day (IST), pulled live · for the boss's WhatsApp group</div>
+
+<form class="nav" method="get" action="/negative-reviews">
+  <a href="/negative-reviews?date=${prev}">← Prev day</a>
+  <input type="date" name="date" value="${date}" max="${today}">
+  <button type="submit">Go</button>
+  <a class="${next > today ? "off" : ""}" href="/negative-reviews?date=${next}">Next day →</a>
+</form>
+
+${error ? `<div class="warn">⚠️ Could not build the report: ${escapeHtml(error)}</div>` : `
+<div class="kpis">
+  <div class="card"><div class="lbl">Negative reviews</div><div class="val red">${data.reviews.length}</div></div>
+  <div class="card"><div class="lbl">Awaiting reply</div><div class="val yellow">${pending}</div></div>
+  <div class="card"><div class="lbl">Outlets checked</div><div class="val blue">${data.storeCount}</div></div>
+</div>
+${data.failedStores.length ? `<div class="warn">⚠️ Could not check: ${escapeHtml(data.failedStores.join(", "))} — reload to retry before sending.</div>` : ""}
+<div class="hint">Tap <b>Send via WhatsApp</b>, choose the boss group, send. Or <b>Copy</b> and paste it in.${messages.length > 1 ? ` Long day — send all ${messages.length} parts in order.` : ""}</div>
+${messages.map((m, i) => `
+<div class="msg">
+  <textarea id="m${i}" readonly rows="${Math.min(40, m.split("\n").length + 1)}">${escapeHtml(m)}</textarea>
+  <div class="actions">
+    <button class="copy" type="button" onclick="copyMsg('m${i}', this)">📋 Copy${messages.length > 1 ? ` part ${i + 1}` : ""}</button>
+    <a class="wa" href="https://wa.me/?text=${encodeURIComponent(m)}" target="_blank" rel="noopener">Send via WhatsApp${messages.length > 1 ? ` (part ${i + 1})` : ""}</a>
+  </div>
+</div>`).join("")}`}
+
+<a class="btn" href="/status">← Back to Monitor</a>
+
+<script>
+function copyMsg(id, btn) {
+  const t = document.getElementById(id);
+  const done = () => { const old = btn.textContent; btn.textContent = '✅ Copied'; setTimeout(() => (btn.textContent = old), 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(done, () => { t.select(); document.execCommand('copy'); done(); });
+  else { t.select(); document.execCommand('copy'); done(); }
+}
+</script>
+</body></html>`;
+  res.send(html);
+});
+
 /**
  * GBP Pub/Sub push endpoint. Configure the My Business Notifications API to
  * publish NEW_REVIEW / UPDATED_REVIEW to a topic with a push subscription
@@ -331,7 +430,10 @@ function requireSecret(req, res, next) {
 }
 
 /** Reconciliation sweep — catches anything Pub/Sub missed. Run hourly. */
+let pollRunning = false; // overlapping sweeps double-reply the same reviews and waste Gemini quota
 app.post("/tasks/poll", requireSecret, (_req, res) => {
+  if (pollRunning) return res.json({ ok: true, message: "poll already running — skipped" });
+  pollRunning = true;
   res.json({ ok: true, message: "poll started" }); // respond immediately so cron-job.org doesn't time out
   pollAllStores()
     .then((results) => {
@@ -340,7 +442,8 @@ app.post("/tasks/poll", requireSecret, (_req, res) => {
       state.totalPolls++;
       console.log(`poll: processed ${results.length} reviews`);
     })
-    .catch((err) => console.error("poll error:", err));
+    .catch((err) => console.error("poll error:", err))
+    .finally(() => { pollRunning = false; });
 });
 
 /** Post manager-approved drafts. Run every 10-15 minutes. */
@@ -367,3 +470,8 @@ app.post("/tasks/ratings", requireSecret, (_req, res) => {
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => console.log(`jusjumpin-review-ai listening on :${port}`));
+
+// Free Render sleeps after 15 idle min, and a cold boot outlasts cron-job.org's 30 s timeout — self-ping via the public URL to stay warm.
+if (process.env.RENDER_EXTERNAL_URL) {
+  setInterval(() => fetch(`${process.env.RENDER_EXTERNAL_URL}/healthz`).catch(() => {}), 10 * 60 * 1000);
+}
