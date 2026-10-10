@@ -1,4 +1,6 @@
 import express from "express";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { ENV, storeByLocationId, ACTIVE_STORES } from "./config.js";
 import { getReview } from "./gbp.js";
 import { processReview, pollAllStores, postApprovedReplies } from "./pipeline.js";
@@ -24,6 +26,39 @@ const state = {
 
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+// ── Installable as a phone app (Chrome "Install" needs a manifest with ≥192px PNG icons) ──
+app.use("/assets", express.static(join(dirname(fileURLToPath(import.meta.url)), "assets"), { maxAge: "7d" }));
+
+const APPS = {
+  "negative-reviews": { name: "JJ Negative Reviews", short_name: "Neg Reviews", start_url: "/negative-reviews" },
+  ratings: { name: "JJ Ratings Dashboard", short_name: "JJ Ratings", start_url: "/ratings" },
+  status: { name: "JJ Review AI Monitor", short_name: "Review AI", start_url: "/status" },
+};
+
+app.get("/manifest.webmanifest", (req, res) => {
+  const app = APPS[req.query.page] || APPS.status;
+  res.type("application/manifest+json").json({
+    id: app.start_url,
+    ...app,
+    scope: "/",
+    display: "standalone",
+    background_color: "#0f172a",
+    theme_color: "#0f172a",
+    icons: [
+      { src: "/assets/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/assets/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/assets/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  });
+});
+
+const appHead = (page) => `<link rel="manifest" href="/manifest.webmanifest?page=${page}">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">`;
+
 app.get("/status", async (_req, res) => {
   let stats = { open: 0, approved: 0, posted: 0, total: 0, recent: [] };
   try { stats = await getStats(); } catch {}
@@ -41,6 +76,7 @@ app.get("/status", async (_req, res) => {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JJ Review AI — Monitor</title>
+${appHead("status")}
 <meta http-equiv="refresh" content="60">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -195,6 +231,7 @@ app.get("/ratings", async (_req, res) => {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JJ Review AI — Ratings Dashboard</title>
+${appHead("ratings")}
 <meta http-equiv="refresh" content="300">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -324,6 +361,7 @@ app.get("/negative-reviews", async (req, res) => {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JJ Review AI — Negative Review Report</title>
+${appHead("negative-reviews")}
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:20px;min-height:100vh;max-width:760px;margin:0 auto}
