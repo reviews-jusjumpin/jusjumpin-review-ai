@@ -10,7 +10,7 @@
     { "code": "DSL",  "name": "DSL Virtue",    "state": "Telangana",    "active": true,  "gbpLocationId": "702155970466727542",     "managerEmail": "", "managerWhatsApp": "" },
     { "code": "GHT",  "name": "Ghatkopar",     "state": "Maharashtra",  "active": true,  "gbpLocationId": "18063501228920629798",   "managerEmail": "", "managerWhatsApp": "" },
     { "code": "GIP",  "name": "Gip",           "state": "Uttar Pradesh","active": true,  "gbpLocationId": "9580379628602064681",    "managerEmail": "", "managerWhatsApp": "" },
-    { "code": "JSR",  "name": "Jamshedpur",    "state": "Jharkhand",    "active": true,  "gbpLocationId": "",                       "managerEmail": "", "managerWhatsApp": "" },
+    { "code": "JSR",  "name": "Jamshedpur",    "state": "Jharkhand",    "active": true,  "gbpLocationId": "8711608526356096984",    "managerEmail": "", "managerWhatsApp": "" },
     { "code": "LSH",  "name": "Lake Shore",    "state": "Telangana",    "active": true,  "gbpLocationId": "15710623730991787386",   "managerEmail": "", "managerWhatsApp": "" },
     { "code": "M3M",  "name": "M3M",           "state": "Haryana",      "active": true,  "gbpLocationId": "3357755965008810750",    "managerEmail": "", "managerWhatsApp": "" },
     { "code": "M5",   "name": "M5",            "state": "Karnataka",    "active": true,  "gbpLocationId": "8451227716415994508",    "managerEmail": "", "managerWhatsApp": "" },
