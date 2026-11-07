@@ -1,6 +1,6 @@
 import { gfetch } from "./google-auth.js";
 import { ACTIVE_STORES, ENV } from "./config.js";
-import { ticketsByReviewId } from "./sheets.js";
+import { ticketsByReviewId, getRatingDropLog } from "./sheets.js";
 
 const REVIEWS_BASE = "https://mybusiness.googleapis.com/v4";
 const STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
@@ -19,6 +19,9 @@ export function istTime(iso) {
   h = h % 12 || 12;
   return `${h}:${m} ${ap}`;
 }
+
+// The sheet stores float32 noise (4.699999809) — GBP ratings are 1-decimal.
+export const fmtRating = (n) => (Math.round(Number(n) * 10) / 10).toFixed(1);
 
 export function prettyDate(date) {
   const [y, mo, d] = date.split("-").map(Number);
@@ -85,7 +88,31 @@ export async function collectNegativeReviews(date) {
   }
   for (const r of reviews) r.ticket = tickets.get(r.reviewId) || null;
   reviews.sort((a, b) => a.rating - b.rating || Date.parse(a.createTime) - Date.parse(b.createTime));
-  return { date, storeCount: stores.length, reviews, failedStores };
+
+  // Rating drops are logged by /tasks/ratings every 4 h; show the ones detected on this IST day.
+  let drops = [];
+  let recentDrops = [];
+  try {
+    const from = istDate(start - 29 * 86_400_000);
+    recentDrops = (await getRatingDropLog({ limit: 1000 }))
+      .map((d) => ({ ...d, day: istDate(Date.parse(d.detectedAt)) }))
+      .filter((d) => d.day >= from && d.day <= date);
+    drops = recentDrops.filter((d) => d.day === date).sort((a, b) => Date.parse(a.detectedAt) - Date.parse(b.detectedAt));
+  } catch (err) {
+    console.error("digest: drop log lookup failed:", err);
+  }
+  return { date, storeCount: stores.length, reviews, failedStores, drops, recentDrops };
+}
+
+function dropLines(drops) {
+  if (!drops.length) return ["📉 Rating drops: none"];
+  return [
+    `📉 *Rating drops: ${drops.length}*`,
+    ...drops.map(
+      (d) =>
+        `• ${d.name}: ${fmtRating(d.oldRating)} → ${fmtRating(d.newRating)}★ · ${istTime(d.detectedAt)} · reviews ${d.oldReviewCount.toLocaleString("en-IN")} → ${d.newReviewCount.toLocaleString("en-IN")}`
+    ),
+  ];
 }
 
 function statusLine(r) {
@@ -96,11 +123,11 @@ function statusLine(r) {
 }
 
 /** WhatsApp-formatted text, split into ≤CHUNK_LIMIT messages at review boundaries. */
-export function formatDigest({ date, storeCount, reviews, failedStores }) {
+export function formatDigest({ date, storeCount, reviews, failedStores, drops = [] }) {
   const header = [`🔴 *Negative Google Reviews — ${prettyDate(date)}*`, `All 1★–3★ reviews posted that day · ${storeCount} outlets checked`, ""];
 
   if (!reviews.length) {
-    header.push(`✅ No negative reviews on ${prettyDate(date)}.`);
+    header.push(`✅ No negative reviews on ${prettyDate(date)}.`, "", ...dropLines(drops));
     if (failedStores.length) header.push(`\n⚠️ Could not check: ${failedStores.join(", ")}`);
     return [header.join("\n")];
   }
@@ -116,6 +143,7 @@ export function formatDigest({ date, storeCount, reviews, failedStores }) {
   header.push(storeList);
   header.push(`Awaiting reply: ${pending}`);
   if (failedStores.length) header.push(`⚠️ Could not check: ${failedStores.join(", ")}`);
+  header.push("", ...dropLines(drops));
 
   const blocks = reviews.map((r, i) => {
     const text = r.comment ? `"${r.comment.replace(/\s+/g, " ").trim().slice(0, 300)}${r.comment.length > 300 ? "…" : ""}"` : "_(rating only, no text)_";

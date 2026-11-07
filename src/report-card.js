@@ -1,4 +1,4 @@
-import { istTime, prettyDate } from "./digest.js";
+import { istTime, prettyDate, fmtRating } from "./digest.js";
 
 const PER_IMAGE = 8; // taller than this and WhatsApp's image compression makes the text hard to read
 const AVATAR_COLORS = ["#1a73e8", "#e8710a", "#188038", "#a142f4", "#d93025", "#12b5cb", "#e52592", "#5f6368"];
@@ -43,6 +43,11 @@ export const REPORT_CARD_CSS = `
 .rc-status.ok{background:#e6f4ea;color:#137333}.rc-status.info{background:#e8f0fe;color:#1967d2}
 .rc-status.warn{background:#fef7e0;color:#b06000}.rc-status.bad{background:#fce8e6;color:#c5221f}
 .rc-clear{padding:34px 24px;text-align:center;font-size:18px;color:#137333;font-weight:600}
+.rc-drops{background:#fce8e6;padding:12px 24px 10px;border-bottom:1px solid #f4c7c3}
+.rc-drops-t{font-size:14px;font-weight:700;color:#c5221f;margin-bottom:4px}
+.rc-drop{font-size:14px;padding:4px 0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.rc-drop .down{color:#c5221f}
+.rc-drop .rc-meta{font-size:12.5px}
 .rc-foot{background:#f8f9fa;color:#80868b;font-size:11.5px;padding:10px 24px;text-align:right}
 `;
 
@@ -65,7 +70,17 @@ function reviewHtml(r) {
 }
 
 /** Image-ready report cards (one per ≤PER_IMAGE reviews) plus a short WhatsApp caption for each. */
-export function reportCards({ date, storeCount, reviews, failedStores }) {
+function dropsHtml(drops) {
+  if (!drops.length) return "";
+  const rows = drops
+    .map(
+      (d) => `<div class="rc-drop"><span class="rc-store">${esc(d.name)}</span><b>${fmtRating(d.oldRating)} → <span class="down">${fmtRating(d.newRating)}★</span></b><span class="rc-meta">${esc(istTime(d.detectedAt))} · reviews ${d.oldReviewCount.toLocaleString("en-IN")} → ${d.newReviewCount.toLocaleString("en-IN")}</span></div>`
+    )
+    .join("");
+  return `<div class="rc-drops"><div class="rc-drops-t">📉 Rating dropped at ${drops.length} outlet${drops.length > 1 ? "s" : ""}</div>${rows}</div>`;
+}
+
+export function reportCards({ date, storeCount, reviews, failedStores, drops = [] }) {
   const day = prettyDate(date);
   const counts = [1, 2, 3].map((n) => reviews.filter((r) => r.rating === n).length);
   const pending = reviews.filter((r) => !r.replied).length;
@@ -78,8 +93,8 @@ export function reportCards({ date, storeCount, reviews, failedStores }) {
     const head = `<div class="rc-head">
   <div class="rc-title">🔴 Negative Google Reviews</div>
   <div class="rc-date">${esc(day)} · ${storeCount} outlets checked${part}</div>
-  <div class="rc-stats"><span><b>${reviews.length}</b> total</span><span>${counts[0]}× 1★</span><span>${counts[1]}× 2★</span><span>${counts[2]}× 3★</span><span><b>${pending}</b> awaiting reply</span></div>
-</div>`;
+  <div class="rc-stats"><span><b>${reviews.length}</b> total</span><span>${counts[0]}× 1★</span><span>${counts[1]}× 2★</span><span>${counts[2]}× 3★</span><span><b>${pending}</b> awaiting reply</span><span>📉 <b>${drops.length}</b> rating drop${drops.length === 1 ? "" : "s"}</span></div>
+</div>${i === 0 ? dropsHtml(drops) : ""}`;
     const body = chunk.length
       ? `<div class="rc-body">${chunk.map(reviewHtml).join("")}</div>`
       : `<div class="rc-clear">✅ No negative reviews on ${esc(day)}</div>`;
@@ -87,6 +102,6 @@ export function reportCards({ date, storeCount, reviews, failedStores }) {
     return `<div class="rc" id="rc${i}">${head}${body}<div class="rc-foot">${warn}Jus Jumpin Review AI · live from Google Business Profile</div></div>`;
   });
 
-  const captions = chunks.map((_, i) => `🔴 Negative Google Reviews — ${day}: ${reviews.length} total, ${pending} awaiting reply${chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : ""}`);
+  const captions = chunks.map((_, i) => `🔴 Negative Google Reviews — ${day}: ${reviews.length} total, ${pending} awaiting reply, ${drops.length} rating drop${drops.length === 1 ? "" : "s"}${chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : ""}`);
   return { cards, captions };
 }

@@ -6,7 +6,7 @@ import { getReview } from "./gbp.js";
 import { processReview, pollAllStores, postApprovedReplies } from "./pipeline.js";
 import { getStats, getRatingDropLog, getSetting, setSetting } from "./sheets.js";
 import { fetchLiveRatings, checkForDrops } from "./ratings.js";
-import { collectNegativeReviews, formatDigest, yesterdayIST, istDate } from "./digest.js";
+import { collectNegativeReviews, formatDigest, yesterdayIST, istDate, istTime, prettyDate, fmtRating } from "./digest.js";
 import { reportCards, REPORT_CARD_CSS } from "./report-card.js";
 
 const app = express();
@@ -371,7 +371,15 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
 .nav a,.nav button{padding:7px 12px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px;text-decoration:none;cursor:pointer}
 .nav a.off{opacity:.35;pointer-events:none}
 .nav input{padding:6px 8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.dlog{background:#1e293b;border-radius:10px;padding:6px 14px;margin-bottom:16px;overflow-x:auto}
+.dlog table{width:100%;border-collapse:collapse;font-size:13px}
+.dlog th{text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em;padding:8px 6px;border-bottom:1px solid #334155}
+.dlog td{padding:8px 6px;border-bottom:1px solid #334155;white-space:nowrap}
+.dlog tr:last-child td{border-bottom:none}
+.dlog tr.today td{background:#7f1d1d33}
+.dlog .down{color:#ef4444;font-weight:700}
 .card{background:#1e293b;border-radius:10px;padding:12px;text-align:center}
 .card .val{font-size:26px;font-weight:800;margin-top:4px}
 .card .lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
@@ -407,6 +415,7 @@ ${error ? `<div class="warn">⚠️ Could not build the report: ${escapeHtml(err
   <div class="card"><div class="lbl">Negative reviews</div><div class="val red">${data.reviews.length}</div></div>
   <div class="card"><div class="lbl">Awaiting reply</div><div class="val yellow">${pending}</div></div>
   <div class="card"><div class="lbl">Outlets checked</div><div class="val blue">${data.storeCount}</div></div>
+  <div class="card"><div class="lbl">Rating drops</div><div class="val ${data.drops.length ? "red" : ""}">${data.drops.length}</div></div>
 </div>
 ${data.failedStores.length ? `<div class="warn">⚠️ Could not check: ${escapeHtml(data.failedStores.join(", "))} — reload to retry before sending.</div>` : ""}
 
@@ -429,7 +438,19 @@ ${messages.map((m, i) => `
     <button class="copy" type="button" onclick="copyMsg('m${i}', this)">📋 Copy${messages.length > 1 ? ` part ${i + 1}` : ""}</button>
     <a class="wa" href="https://wa.me/?text=${encodeURIComponent(m)}" target="_blank" rel="noopener">Send via WhatsApp${messages.length > 1 ? ` (part ${i + 1})` : ""}</a>
   </div>
-</div>`).join("")}`}
+</div>`).join("")}
+
+<div class="sec">📉 Rating drop log — 30 days to ${escapeHtml(prettyDate(date))}</div>
+<div class="hint">Checked every 4 hours. A row appears when an outlet's Google rating goes down; the selected day is highlighted.</div>
+${data.recentDrops.length ? `<div class="dlog"><table>
+  <tr><th>Detected</th><th>Outlet</th><th>Rating</th><th>Reviews</th></tr>
+  ${data.recentDrops.map((d) => `<tr class="${d.day === date ? "today" : ""}">
+    <td>${escapeHtml(prettyDate(d.day))}, ${escapeHtml(istTime(d.detectedAt))}</td>
+    <td><b>${escapeHtml(d.name)}</b></td>
+    <td>${fmtRating(d.oldRating)} → <span class="down">${fmtRating(d.newRating)}★</span></td>
+    <td style="color:#94a3b8">${d.oldReviewCount.toLocaleString("en-IN")} → ${d.newReviewCount.toLocaleString("en-IN")}</td>
+  </tr>`).join("")}
+</table></div>` : `<div class="hint">✅ No rating drops in these 30 days.</div>`}`}
 
 <a class="btn" href="/status">← Back to Monitor</a>
 
