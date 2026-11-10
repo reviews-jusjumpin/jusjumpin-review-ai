@@ -584,7 +584,9 @@ tr.sel td{background:#312e81aa}
 .st{font-size:11.5px;font-weight:600;margin-left:auto}.st.ok{color:#22c55e}.st.bad{color:#f59e0b}
 .warnbox{background:#7f1d1d33;border:1px solid #ef444455;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:#fca5a5}
 #loading{background:#1e293b;border-radius:10px;padding:28px;text-align:center;color:#94a3b8;font-size:14px}
-#shareCard{overflow:hidden;border-radius:14px;margin-bottom:10px;display:flex;justify-content:center}
+#shareCard{display:flex;flex-direction:column;align-items:center;gap:16px;margin-bottom:10px}
+.cw{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
+.cbtn{padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px;border:none;cursor:pointer;min-width:220px}
 .actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 .actions button,.actions a{flex:1;min-width:140px;text-align:center;padding:11px 14px;border-radius:8px;font-weight:700;font-size:14px;border:none;cursor:pointer;text-decoration:none}
 .copy{background:#6366f1;color:#fff}.wa{background:#22c55e;color:#062e16}.dl{background:#334155;color:#e2e8f0}
@@ -621,18 +623,17 @@ textarea{width:100%;background:#0b1220;color:#e2e8f0;border:1px solid #334155;bo
   <div class="sec" id="storeTitle">Stores</div>
   <div class="box"><table class="t" id="storeTable"></table></div>
 
-  <div class="sec">📸 Share summary</div>
-  <div class="hint">Phone: <b>Send image on WhatsApp</b> → pick the group. PC: <b>Copy image</b>, then Ctrl+V in the WhatsApp chat. It shows the selected period and category.</div>
+  <div class="sec">📸 Full tracking report — image + message</div>
+  <div class="hint">Every category ▲ up / ▼ down, what we have to fix, store tracking and the action plan, for the selected period and category. Phone: <b>Send on WhatsApp</b> → pick the group (image + message together; if the message doesn't come, tap <b>Copy message</b> and paste). PC: <b>Copy image</b> → Ctrl+V in the chat (a long report is 2 images: do both), then <b>Copy message</b> → paste.</div>
   <div id="shareCard"></div>
   <div class="actions">
-    <button class="copy" id="copyImg" type="button">📋 Copy image</button>
-    <button class="wa" id="shareImg" type="button">📤 Send image on WhatsApp</button>
-    <button class="dl" id="dlImg" type="button">⬇ Download</button>
+    <button class="wa" id="shareImg" type="button">📤 Send on WhatsApp</button>
+    <button class="dl" id="dlImg" type="button">⬇ Download image</button>
   </div>
-  <textarea id="shareText" rows="12" readonly></textarea>
+  <textarea id="shareText" rows="16" readonly></textarea>
   <div class="actions">
-    <button class="copy" id="copyText" type="button">📋 Copy text</button>
-    <a class="wa" id="waLink" href="#" target="_blank" rel="noopener">Send text via WhatsApp</a>
+    <button class="copy" id="copyText" type="button">📋 Copy message</button>
+    <a class="wa" id="waLink" href="#" target="_blank" rel="noopener">Send message via WhatsApp</a>
   </div>
 
   <div class="sec" id="listTitle">Reviews</div>
