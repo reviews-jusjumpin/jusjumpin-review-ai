@@ -294,7 +294,7 @@
       head: `${s.store} ${s.c > s.p ? `▲ +${s.c - s.p}` : `(${s.c})`}`,
       body: all && !topIssues(s) ? "check what went wrong (star-only / short reviews)" : `fix ${all ? topIssues(s) : catName.toLowerCase()}`,
     }));
-    if (awaiting) actions.push({ head: `Reply to ${awaiting} pending review${awaiting > 1 ? "s" : ""}`, body: "today — Tickets sheet → set APPROVED" });
+    // review replies are done centrally by Souvik, so they are not a store action item
     return { fixes, improved, actions };
   }
 
@@ -372,7 +372,7 @@
     const planSec = `<div style="${SEC}">✅ Action plan</div>` + (plan.actions.length
       ? plan.actions.map((a, i) => `<div style="display:flex;gap:8px;font-size:13.5px;margin-bottom:5px"><span style="font-weight:800;min-width:18px">${i + 1}.</span><span><b>${esc(a.head)}</b>: ${esc(a.body)}</span></div>`).join("")
       : `<div style="font-size:13.5px;color:#137333;font-weight:700">Nothing urgent — keep the same standards</div>`) +
-      `<div style="margin-top:8px;font-size:13px;color:#3c4043;font-weight:700">🙏 Store managers: reply in the group with what was done.</div>`;
+      (plan.actions.length ? `<div style="margin-top:10px;background:#e8f0fe;color:#174ea6;border-radius:8px;padding:9px 12px;font-size:14px;font-weight:700">📢 Responsible person of each store: please reply here with what was done.</div>` : "");
 
     const partA = `${kpis}<div style="padding:0 22px">${catSec}${storeSec}</div>`;
     const partB = `<div style="padding:0 22px">${fixSec}${impSec}${planSec}</div>`;
@@ -430,7 +430,7 @@
     L.push("", "*✅ Action plan*");
     if (!plan.actions.length) L.push("Nothing urgent — keep the same standards");
     plan.actions.forEach((a, i) => L.push(`${i + 1}. *${a.head}*: ${a.body}`));
-    L.push("", "🙏 Store managers: please reply here with what was done.");
+    if (plan.actions.length) L.push("", "📢 *Responsible person of each store: please reply here with what was done.*");
     return L.join("\n");
   }
 
