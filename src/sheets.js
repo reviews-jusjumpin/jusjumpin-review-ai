@@ -77,6 +77,7 @@ export async function ticketsByReviewId() {
     if (!reviewId) continue;
     map.set(reviewId, {
       ticketId: r[0] || "",
+      topics: (r[6] || "").split(",").map((t) => t.trim()).filter(Boolean),
       severity: r[7] || "",
       summary: r[8] || "",
       status: (r[11] || "OPEN").trim().toUpperCase(),

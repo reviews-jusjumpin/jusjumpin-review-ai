@@ -8,6 +8,7 @@ import { getStats, getRatingDropLog, getSetting, setSetting } from "./sheets.js"
 import { fetchLiveRatings, checkForDrops } from "./ratings.js";
 import { collectNegativeReviews, formatDigest, yesterdayIST, istDate, istTime, prettyDate, fmtRating } from "./digest.js";
 import { reportCards, REPORT_CARD_CSS } from "./report-card.js";
+import { negativeReviewReport, MAX_DAYS_BACK } from "./review-report.js";
 
 const app = express();
 app.use(express.json());
@@ -31,6 +32,7 @@ app.use("/assets", express.static(join(dirname(fileURLToPath(import.meta.url)), 
 
 const APPS = {
   "negative-reviews": { name: "JJ Negative Reviews", short_name: "Neg Reviews", start_url: "/negative-reviews" },
+  "review-report": { name: "JJ Review Report", short_name: "Review Report", start_url: "/review-report" },
   ratings: { name: "JJ Ratings Dashboard", short_name: "JJ Ratings", start_url: "/ratings" },
   status: { name: "JJ Review AI Monitor", short_name: "Review AI", start_url: "/status" },
 };
@@ -143,6 +145,7 @@ h1{font-size:22px;font-weight:700;margin-bottom:4px}
   <div class="links">
     <a class="btn" href="/ratings">⭐ Ratings Dashboard</a>
     <a class="btn" href="/negative-reviews">🔴 Daily Negative Review Report</a>
+    <a class="btn" href="/review-report">📊 Weekly / Monthly Review Report</a>
     <a class="btn" href="https://docs.google.com/spreadsheets/d/${ENV.spreadsheetId}" target="_blank">📋 Google Sheets — Ticket Log</a>
     <a class="btn" href="https://dashboard.render.com/web/srv-d95np94vikkc73dvb25g/logs" target="_blank">📜 Render Logs</a>
     <a class="btn" href="https://console.cron-job.org/jobs" target="_blank">⏰ Cron Jobs</a>
@@ -420,12 +423,12 @@ ${error ? `<div class="warn">⚠️ Could not build the report: ${escapeHtml(err
 ${data.failedStores.length ? `<div class="warn">⚠️ Could not check: ${escapeHtml(data.failedStores.join(", "))} — reload to retry before sending.</div>` : ""}
 
 <div class="sec">📸 Screenshot version</div>
-<div class="hint">Phone: tap <b>Share image</b> → WhatsApp → pick the group. PC: <b>Copy image</b>, then Ctrl+V in the WhatsApp group.${cards.length > 1 ? ` Busy day — send all ${cards.length} images in order.` : ""}</div>
+<div class="hint">Phone: tap <b>Send image on WhatsApp</b> → pick the group. PC: <b>Copy image</b>, then Ctrl+V in the WhatsApp group.${cards.length > 1 ? ` Busy day — send all ${cards.length} images in order.` : ""}</div>
 ${cards.map((c, i) => `
 <div class="rc-wrap">${c}</div>
 <div class="actions" style="margin-bottom:16px">
   <button class="copy" type="button" onclick="copyImg(${i}, this)">📋 Copy image${cards.length > 1 ? ` ${i + 1}` : ""}</button>
-  <button class="wa" type="button" onclick="shareImg(${i}, this)">📤 Share image${cards.length > 1 ? ` ${i + 1}` : ""}</button>
+  <button class="wa" type="button" onclick="shareImg(${i}, this)">📤 Send image on WhatsApp${cards.length > 1 ? ` ${i + 1}` : ""}</button>
   <button class="dl" type="button" onclick="downloadImg(${i}, this)">⬇ Download</button>
 </div>`).join("")}
 
@@ -453,6 +456,7 @@ ${data.recentDrops.length ? `<div class="dlog"><table>
 </table></div>` : `<div class="hint">✅ No rating drops in these 30 days.</div>`}`}
 
 <a class="btn" href="/status">← Back to Monitor</a>
+<a class="btn" href="/review-report">📊 Weekly / Monthly report →</a>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
@@ -483,11 +487,16 @@ async function copyImg(i, btn) {
   } catch (e) { flash(btn, 'Copy blocked here — use Download'); }
 }
 async function shareImg(i, btn) {
-  const blob = await renderCard(i);
-  const file = new File([blob], fileName(i), { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  const probe = new File([new Blob(['x'])], 'x.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [probe] })) {
+    const file = new File([await renderCard(i)], fileName(i), { type: 'image/png' });
     try { await navigator.share({ files: [file], text: CAPTIONS[i] }); } catch (e) { /* user closed the share sheet */ }
-  } else { saveBlob(blob, file.name); flash(btn, 'Sharing not supported — downloaded'); }
+    return;
+  }
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderCard(i) })]);
+    flash(btn, '✅ Copied — open WhatsApp, press Ctrl+V');
+  } catch (e) { saveBlob(await renderCard(i), fileName(i)); flash(btn, 'Downloaded — attach it in WhatsApp'); }
 }
 async function downloadImg(i, btn) { saveBlob(await renderCard(i), fileName(i)); flash(btn, '✅ Downloaded'); }
 function copyMsg(id, btn) {
@@ -499,6 +508,142 @@ function copyMsg(id, btn) {
 </script>
 </body></html>`;
   res.send(html);
+});
+
+// ── Weekly / monthly / custom negative-review report by AI category ──
+const ASSET_VERSION = Date.now(); // assets are cached 7 days; a new deploy busts the cache
+
+app.get("/api/review-report", async (req, res) => {
+  const q = (k) => String(req.query[k] || "");
+  const [from, to, pfrom, pto] = ["from", "to", "pfrom", "pto"].map(q);
+  const ok = [from, to, pfrom, pto].every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (!ok || from > to || pfrom > pto || pto >= from) return res.status(400).json({ error: "Invalid dates." });
+  if (to > istDate()) return res.status(400).json({ error: "The end date can't be in the future." });
+  if (pfrom < istDate(Date.now() - MAX_DAYS_BACK * 86_400_000)) {
+    return res.status(400).json({ error: `Pick a range within the last ${MAX_DAYS_BACK} days (including the comparison period).` });
+  }
+  try {
+    res.json(await negativeReviewReport({ from, to, pfrom, pto }));
+  } catch (err) {
+    console.error("review-report error:", err);
+    res.status(500).json({ error: String(err.message || err) });
+  }
+});
+
+app.get("/review-report", (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JJ Review AI — Negative Review Report</title>
+${appHead("review-report")}
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:20px;min-height:100vh;max-width:900px;margin:0 auto}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.sub{font-size:13px;color:#64748b;margin-bottom:16px}
+.bar{background:#1e293b;border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{padding:8px 13px;border-radius:999px;border:1px solid #334155;background:#0f172a;color:#cbd5e1;font-size:13px;cursor:pointer;font-weight:600}
+.chip.on{background:#6366f1;border-color:#6366f1;color:#fff}
+.bar input,.bar select{padding:7px 9px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px}
+.bar label{font-size:12px;color:#94a3b8;margin-right:2px}
+#custom{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#custom[hidden]{display:none}
+.gobtn{padding:7px 14px;border-radius:6px;border:none;background:#6366f1;color:#fff;font-weight:700;cursor:pointer}
+.period{font-size:13px;color:#94a3b8;margin:4px 2px 14px}
+.period b{color:#e2e8f0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.card{background:#1e293b;border-radius:10px;padding:12px;text-align:center}
+.card .lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.card .val{font-size:26px;font-weight:800;margin-top:4px}
+.card .val.sm{font-size:16px;margin:10px 0 4px}
+.card .val.warn{color:#f59e0b}
+.card .chg{font-size:12.5px;margin-top:4px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.up{color:#ef4444;font-weight:700}.down{color:#22c55e;font-weight:700}.same{color:#64748b}
+.vs,.muted{color:#64748b}
+.sec{font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:22px 0 8px}
+.hint{font-size:12px;color:#64748b;margin-bottom:10px}
+.box{background:#1e293b;border-radius:10px;padding:6px 14px;overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:13.5px}
+table.t th{text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.03em;padding:9px 6px;border-bottom:1px solid #334155;white-space:nowrap}
+table.t td{padding:9px 6px;border-bottom:1px solid #334155}
+table.t tr:last-child td{border-bottom:none}
+table.t .n{text-align:right;white-space:nowrap}
+tr.pick{cursor:pointer}
+tr.pick:hover td{background:#26354d}
+tr.sel td{background:#312e81aa}
+.rev{background:#1e293b;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.rev-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+.store{background:#1e3a8a;color:#bfdbfe;border-radius:6px;padding:2px 8px;font-weight:600}
+.stars{color:#fbbc04;letter-spacing:1px}.stars .off{color:#475569}
+.txt{font-size:14px;line-height:1.45;margin-top:7px}
+.sum{font-size:12.5px;color:#cbd5e1;background:#0f172a;border-radius:6px;padding:6px 9px;margin-top:7px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.tag{font-size:11.5px;background:#334155;color:#e2e8f0;border-radius:999px;padding:2px 9px}
+.st{font-size:11.5px;font-weight:600;margin-left:auto}.st.ok{color:#22c55e}.st.bad{color:#f59e0b}
+.warnbox{background:#7f1d1d33;border:1px solid #ef444455;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:#fca5a5}
+#loading{background:#1e293b;border-radius:10px;padding:28px;text-align:center;color:#94a3b8;font-size:14px}
+#shareCard{overflow:hidden;border-radius:14px;margin-bottom:10px;display:flex;justify-content:center}
+.actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.actions button,.actions a{flex:1;min-width:140px;text-align:center;padding:11px 14px;border-radius:8px;font-weight:700;font-size:14px;border:none;cursor:pointer;text-decoration:none}
+.copy{background:#6366f1;color:#fff}.wa{background:#22c55e;color:#062e16}.dl{background:#334155;color:#e2e8f0}
+textarea{width:100%;background:#0b1220;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:12px;font:13px/1.5 'Segoe UI',system-ui,sans-serif;resize:vertical;margin-top:8px}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;background:#1e293b;color:#e2e8f0;border:1px solid #334155;margin:18px 6px 0 0}
+</style>
+</head>
+<body data-today="${istDate()}">
+<h1>📊 Negative Review Report</h1>
+<div class="sub">1★–3★ Google reviews by category, compared with the previous period · all ${ACTIVE_STORES.filter((s) => s.gbpLocationId).length} outlets</div>
+
+<div class="bar">
+  <button class="chip" data-p="lastweek">Last week</button>
+  <button class="chip" data-p="thisweek">This week</button>
+  <button class="chip" data-p="lastmonth">Last month</button>
+  <button class="chip" data-p="thismonth">This month</button>
+  <button class="chip" data-p="custom">Custom</button>
+  <span id="custom" hidden><label for="from">From</label><input type="date" id="from"><label for="to">To</label><input type="date" id="to"><button class="gobtn" id="go">Go</button></span>
+</div>
+<div class="bar"><label for="cat">Category</label><select id="cat"><option value="all">All categories</option></select></div>
+<div class="period" id="periodLine"></div>
+
+<div id="loading" hidden>⏳ Loading reviews from Google… a new period can take up to a minute the first time, then it's instant for 20 minutes.</div>
+<div id="err" class="warnbox" hidden></div>
+
+<div id="out" hidden>
+  <div class="kpis" id="kpis"></div>
+  <div id="failed" class="warnbox" hidden></div>
+
+  <div class="sec">By category</div>
+  <div class="hint">Tap a category to see its stores and reviews. One review can mention several categories, so the categories add up to more than the total. ▲ red = more complaints than before, ▼ green = fewer.</div>
+  <div class="box"><table class="t" id="catTable"></table></div>
+
+  <div class="sec" id="storeTitle">Stores</div>
+  <div class="box"><table class="t" id="storeTable"></table></div>
+
+  <div class="sec">📸 Share summary</div>
+  <div class="hint">Phone: <b>Send image on WhatsApp</b> → pick the group. PC: <b>Copy image</b>, then Ctrl+V in the WhatsApp chat. It shows the selected period and category.</div>
+  <div id="shareCard"></div>
+  <div class="actions">
+    <button class="copy" id="copyImg" type="button">📋 Copy image</button>
+    <button class="wa" id="shareImg" type="button">📤 Send image on WhatsApp</button>
+    <button class="dl" id="dlImg" type="button">⬇ Download</button>
+  </div>
+  <textarea id="shareText" rows="12" readonly></textarea>
+  <div class="actions">
+    <button class="copy" id="copyText" type="button">📋 Copy text</button>
+    <a class="wa" id="waLink" href="#" target="_blank" rel="noopener">Send text via WhatsApp</a>
+  </div>
+
+  <div class="sec" id="listTitle">Reviews</div>
+  <div id="list"></div>
+</div>
+
+<a class="btn" href="/status">← Monitor</a><a class="btn" href="/negative-reviews">🔴 Daily report</a><a class="btn" href="/ratings">⭐ Ratings</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="/assets/review-report.js?v=${ASSET_VERSION}"></script>
+</body></html>`);
 });
 
 /**
