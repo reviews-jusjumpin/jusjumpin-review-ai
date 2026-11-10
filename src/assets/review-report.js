@@ -336,8 +336,7 @@
 
     const kpis = `<div style="display:flex;gap:10px;padding:14px 22px 0">
       ${box(all ? "Negative reviews" : catName, scopeC, `${esc(scopeChg.text)} · was ${scopeP}`, scopeChg.d > 0 ? "#c5221f" : scopeChg.d < 0 ? "#137333" : "")}
-      ${box("Stores affected", storesHit, `of ${state.data.storeCount}`)}
-      ${box("Awaiting reply", awaiting, awaiting ? "reply today" : "all replied", awaiting ? "#b06000" : "#137333")}</div>
+      ${box("Stores affected", storesHit, `of ${state.data.storeCount}`)}</div>
       <div style="margin:12px 22px 0;background:${verdict.bg};color:${verdict.col};border-radius:8px;padding:9px 12px;font-weight:700;font-size:14px">${verdict.icon} ${esc(verdict.t)}</div>`;
 
     const catSec = catTrack.length || noDetail.c || noDetail.p ? `<div style="${SEC}">📋 Category tracking</div>
@@ -390,7 +389,7 @@
     if (!all) L.push(`Category: *${catName}*`);
     L.push("", `*${all ? "Negative reviews" : catName}: ${scopeC}* — ${scopeChg.text} (was ${scopeP})`);
     if (!all) L.push(`All negative reviews: ${m.cur.length} — ${total.text} (was ${m.prev.length})`);
-    L.push(`${verdict.icon} ${verdict.t}`, `Stores affected: ${storesHit} of ${state.data.storeCount} · Awaiting reply: ${awaiting}`);
+    L.push(`${verdict.icon} ${verdict.t}`, `Stores affected: ${storesHit} of ${state.data.storeCount}`);
 
     if (catTrack.length || noDetail.c || noDetail.p) {
       L.push("", "*📋 Category tracking*");
